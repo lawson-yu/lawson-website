@@ -1,0 +1,22 @@
+name: 检查
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm exec prisma validate
+      - run: pnpm test
+      - name: 在临时数据库中验证迁移与备份恢复
+        run: pnpm test:integration
+      - run: pnpm build

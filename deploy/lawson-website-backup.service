@@ -1,0 +1,8 @@
+[Unit]
+Description=备份 lawson-website 的 PostgreSQL 并同步到腾讯云 COS
+
+[Service]
+Type=oneshot
+User=ubuntu
+WorkingDirectory=/opt/lawson-website
+ExecStart=/opt/lawson-website/scripts/backup-postgres.sh
