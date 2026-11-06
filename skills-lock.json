@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "skills": {
+    "visual-discovery": {
+      "source": "../skills",
+      "sourceType": "local",
+      "computedHash": "24b8c093e1c88e4591d22a2e30a49d18d6c08aa2d2fbbce32f5e2f660a33b9c8"
+    }
+  }
+}
