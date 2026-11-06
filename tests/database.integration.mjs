@@ -1,0 +1,112 @@
+import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
+import { randomUUID } from "node:crypto";
+import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import test from "node:test";
+import { Client } from "pg";
+import "./register-paths.mjs";
+
+const { getPrisma } = await import("../src/server/db.ts");
+const root = dirname(dirname(fileURLToPath(import.meta.url)));
+// pg 按进程时区解析无时区时间，统一为 Prisma 使用的 UTC。
+process.env.TZ = "UTC";
+
+test("临时数据库可以迁移、重复 seed、备份并恢复全部作品", { timeout: 120_000 }, async (t) => {
+  const directory = mkdtempSync(join(tmpdir(), "lawson-database-test-"));
+  const composeFile = join(directory, "compose.yaml");
+  const envFile = join(directory, ".env.test");
+  const backupDirectory = join(directory, "backups", "postgres archive\n测试");
+  const backupScript = join(directory, "scripts", "backup-postgres.sh");
+  const project = `lawson-test-${randomUUID().slice(0, 8)}`;
+  const env = {
+    ...process.env,
+    COMPOSE_PROJECT_NAME: project,
+    COMPOSE_FILE: composeFile,
+    ENV_FILE: envFile,
+    BACKUP_DIR: backupDirectory,
+    BACKUP_RETENTION: "2",
+    COS_ALIAS: "",
+  };
+  const options = { cwd: root, env, encoding: "utf8", timeout: 30_000 };
+  const compose = ["compose", "-p", project, "-f", composeFile, "--env-file", envFile];
+  let prisma;
+  let restored;
+  const originalUrl = process.env.DATABASE_URL;
+  t.after(async () => {
+    try {
+      await restored?.end();
+      await prisma?.$disconnect();
+    } finally {
+      try {
+        execFileSync("docker", [...compose, "down", "-v"], options);
+      } finally {
+        rmSync(directory, { recursive: true, force: true });
+        if (originalUrl === undefined) delete process.env.DATABASE_URL;
+        else process.env.DATABASE_URL = originalUrl;
+      }
+    }
+  });
+
+  // 独立目录中没有生产配置，备份脚本无法读取生产凭据。
+  mkdirSync(dirname(backupScript), { recursive: true });
+  copyFileSync(join(root, "scripts", "backup-postgres.sh"), backupScript);
+  writeFileSync(envFile, "");
+  writeFileSync(composeFile, `services:
+  postgres:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_USER: test
+      POSTGRES_PASSWORD: test
+      POSTGRES_DB: test
+    ports:
+      - "127.0.0.1::5432"
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U test -d test"]
+      interval: 1s
+      timeout: 1s
+      retries: 20
+`);
+  execFileSync("docker", [...compose, "up", "-d", "--wait", "postgres"], options);
+  const address = execFileSync("docker", [...compose, "port", "postgres", "5432"], options).trim();
+  env.DATABASE_URL = `postgresql://test:test@${address}/test`;
+  process.env.DATABASE_URL = env.DATABASE_URL;
+
+  execFileSync("pnpm", ["db:migrate:deploy"], options);
+  execFileSync("pnpm", ["db:seed"], options);
+  execFileSync("pnpm", ["db:seed"], options);
+  prisma = getPrisma();
+  const projects = await prisma.project.findMany({ orderBy: { slug: "asc" } });
+  assert.deepEqual(projects.map((project) => project.slug), [
+    "open-source-tool", "personal-website", "side-project",
+  ]);
+  await assert.rejects(prisma.$queryRaw`SELECT pg_sleep(10)`, /timeout|timed out/i);
+  assert.equal((await prisma.project.count()), 3);
+
+  mkdirSync(backupDirectory, { recursive: true });
+  const oldDumps = ["20000101", "20010101", "20020101"].map((date) => `lawson_website-${date}T000000Z.dump`);
+  for (const dump of oldDumps) writeFileSync(join(backupDirectory, dump), "旧备份测试文件");
+  execFileSync("bash", [backupScript], options);
+  const dumps = readdirSync(backupDirectory).sort();
+  assert.equal(dumps.length, 2, "含空格和换行的目录中也只保留两份备份");
+  assert.equal(dumps[0], oldDumps[2]);
+  const archive = readFileSync(join(backupDirectory, dumps[1]));
+
+  execFileSync("docker", [...compose, "exec", "-T", "postgres", "createdb", "-U", "test", "restored"], options);
+  execFileSync("docker", [...compose, "exec", "-T", "postgres", "pg_restore", "--exit-on-error", "-U", "test", "-d", "restored"], { ...options, input: archive });
+  restored = new Client({ connectionString: `postgresql://test:test@${address}/restored` });
+  await restored.connect();
+  const result = await restored.query('SELECT * FROM "Project" ORDER BY slug');
+  assert.deepEqual(result.rows, projects, "恢复后所有作品字段必须与备份前一致");
+
+  await restored.end();
+  restored = undefined;
+  await prisma.$disconnect();
+  prisma = undefined;
+  execFileSync("docker", [...compose, "stop", "postgres"], options);
+  assert.throws(() => execFileSync("bash", [backupScript], options));
+  assert.deepEqual(readdirSync(backupDirectory).sort(), dumps, "备份失败不能删除旧备份或留下临时文件");
+  assert.deepEqual(readFileSync(join(backupDirectory, dumps[1])), archive);
+});

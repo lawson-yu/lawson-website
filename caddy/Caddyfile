@@ -1,0 +1,6 @@
+# 域名就绪后，把 APP_DOMAIN 设置为该域名，Caddy 会自动申请并续期 HTTPS 证书。
+# 未设置 APP_DOMAIN 时只监听 80 端口，方便先用服务器 IP 验证部署。
+{$APP_DOMAIN::80} {
+	encode zstd gzip
+	reverse_proxy app:3000
+}

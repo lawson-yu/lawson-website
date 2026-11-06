@@ -1,0 +1,12 @@
+.git
+.next
+node_modules
+coverage
+backups
+deploy/backup.env
+.env*
+!.env.example
+!.env.production.example
+Dockerfile
+compose*.yaml
+README.md

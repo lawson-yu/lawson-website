@@ -11,3 +11,7 @@
 ### Domain docs
 
 领域文档采用单上下文布局；探索代码或处理领域术语时阅读 `docs/agents/domain.md`。
+
+### Database migrations
+
+修改 Prisma schema、数据库结构或排查 seed 与 schema 不一致时，使用 `.agents/skills/database-migrations/SKILL.md`。

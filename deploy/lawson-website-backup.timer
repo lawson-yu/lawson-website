@@ -1,0 +1,10 @@
+[Unit]
+Description=每周运行 lawson-website 数据库备份
+
+[Timer]
+OnCalendar=Mon 03:00
+Persistent=true
+RandomizedDelaySec=600
+
+[Install]
+WantedBy=timers.target
