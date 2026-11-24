@@ -1,6 +1,8 @@
 # 媒体素材存 COS，服务端归一化后只存相对 key
 
-图片存腾讯云 COS 标准存储，桶设为公有读私有写，通过已备案的自定义域名读取。COS 默认域名自 2024 年起对任意类型文件强制下载（响应带 `Content-Disposition: attachment`），无法在页面内嵌显示，所以自定义域名是这套方案最硬的约束。
+图片存腾讯云 COS 标准存储，桶设为公有读私有写，通过自定义域名读取。COS 默认域名自 2024 年起对任意类型文件强制下载（响应带 `Content-Disposition: attachment`），无法在页面内嵌显示，所以自定义域名是这套方案最硬的约束。
+
+腾讯云文档只要求指向**中国大陆地域**存储桶的自定义域名做 ICP 备案；站点部署在腾讯云硅谷 VPS，桶选海外地域（硅谷或香港）即可免备案，代价是大陆访客的图片延迟略高。
 
 上传只有一条路径：后台 → Next 路由处理器 → sharp 归一化 → COS SDK 写入。读取不签名。封面输出 1200×630 JPEG，正文图片输出最长边 1600 的 WebP。数据库只存相对 key（如 `media/2026/11/xxx.webp`），渲染时拼 base URL，换域名或换存储只改一处。
 
@@ -19,4 +21,4 @@
 
 读取不签名意味着拿到 URL 即可访问；这是公有读桶的既有风险，已接受（桶内只有公开内容）。
 
-调研依据见 issue #26 与 `docs/research/media-assets.md`（research 分支）。
+调研依据见 issue #26 与 [docs/research/media-assets.md](../research/media-assets.md)。
