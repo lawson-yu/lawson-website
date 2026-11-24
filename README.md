@@ -1,6 +1,6 @@
 # Lawson 个人网站 Starter
 
-基于 Next.js、GraphQL 和 Prisma/PostgreSQL 的个人网站全栈骨架。
+基于 Next.js、Prisma/PostgreSQL 的个人网站全栈骨架。
 
 ## 本地启动
 
@@ -23,4 +23,19 @@ caddy/     反向代理配置
 docs/      Agent 与运维说明
 ```
 
+## 目录约定
+
+| 情况 | 落位 |
+| --- | --- |
+| 只被一个页面使用 | 页面目录下的 `_components/`（下划线目录不进路由） |
+| 被两个及以上页面使用 | `src/components/` |
+| 被复用的有状态逻辑 | `src/hooks/use-*.ts` |
+| 纯函数 | `src/lib/` |
+| 数据访问与 Server Actions | `src/server/` |
+
+组件默认是服务端组件，只有需要浏览器 API、动画或交互时才加 `"use client"`。
+
+## 文档
+
 - [部署、备份与恢复](docs/operations.md)
+- 架构决策记录：[docs/adr/](docs/adr/)
