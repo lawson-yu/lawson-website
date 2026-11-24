@@ -1,15 +1,13 @@
 "use client";
 
-// 文章列表原型（issue #30）：三个方案共用状态与 chrome，只换列表本身的渲染。
+// 文章列表原型（issue #30）：卡片网格方案 + 共用 chrome 与状态工具条。
 
-import { useRouter } from "next/navigation";
+import { useState } from "react";
 import "./proto.css";
+import { ArticleCards } from "./article-cards";
 import { useArticleListState, type ListState } from "./list-state";
 import { ProtoChrome } from "./proto-chrome";
-import { Switcher, VARIANTS } from "./switcher";
-import { VariantA } from "./variant-a";
-import { VariantB } from "./variant-b";
-import { VariantC } from "./variant-c";
+import { Switcher } from "./switcher";
 
 function DetailStub({ list }: { list: ListState }) {
   const article = list.detail!;
@@ -29,28 +27,15 @@ function DetailStub({ list }: { list: ListState }) {
   );
 }
 
-export function ArticleListProto({ variant }: { variant: string }) {
-  const router = useRouter();
+export function ArticleListProto() {
   const list = useArticleListState();
-  const current = VARIANTS.some((item) => item.key === variant) ? variant : "A";
+  const [covers, setCovers] = useState(true);
 
   return (
     <div className="proto-root">
       <ProtoChrome />
-      {list.detail ? (
-        <DetailStub list={list} />
-      ) : current === "A" ? (
-        <VariantA list={list} />
-      ) : current === "B" ? (
-        <VariantB list={list} />
-      ) : (
-        <VariantC list={list} />
-      )}
-      <Switcher
-        current={current}
-        onChange={(next) => router.replace(`?variant=${next}`, { scroll: false })}
-        list={list}
-      />
+      {list.detail ? <DetailStub list={list} /> : <ArticleCards list={list} covers={covers} />}
+      <Switcher list={list} covers={covers} onToggleCovers={() => setCovers((value) => !value)} />
     </div>
   );
 }

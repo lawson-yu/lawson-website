@@ -1,7 +1,6 @@
 "use client";
 
-// 原型状态（issue #30）：列表的筛选、分页与返回定位。三个方案共用同一套状态，
-// 只在渲染上不同，评审时比较的才是形态本身。
+// 原型状态（issue #30）：列表的筛选、分页与返回定位。
 
 import { useEffect, useMemo, useState } from "react";
 import { ARTICLES, type Article } from "./mock-articles";
@@ -19,7 +18,6 @@ export function matchArticle(article: Article, { q, tag }: Conditions): boolean 
 }
 
 export function useArticleListState() {
-  const [draft, setDraft] = useState("");
   const [q, setQ] = useState("");
   const [tag, setTag] = useState<string | null>(null);
   const [page, setPage] = useState(1);
@@ -46,8 +44,6 @@ export function useArticleListState() {
   }, [restored]);
 
   return {
-    draft,
-    setDraft,
     q,
     tag,
     page: current,
@@ -56,8 +52,9 @@ export function useArticleListState() {
     total: results.length,
     detail,
     restored,
-    submit() {
-      setQ(draft.trim());
+    /** 边输入边过滤（与所参照的组件一致，#22 原定「提交后更新」）。 */
+    search(next: string) {
+      setQ(next);
       setPage(1);
     },
     pickTag(next: string | null) {
@@ -68,7 +65,6 @@ export function useArticleListState() {
       setPage(next);
     },
     clear() {
-      setDraft("");
       setQ("");
       setTag(null);
       setPage(1);
@@ -83,9 +79,7 @@ export function useArticleListState() {
     },
     /** 评审用：一键跳到某个状态。 */
     preset(next: { q?: string; tag?: string | null; page?: number }) {
-      const nextQ = next.q ?? "";
-      setDraft(nextQ);
-      setQ(nextQ);
+      setQ(next.q ?? "");
       setTag(next.tag ?? null);
       setPage(next.page ?? 1);
       setDetail(null);

@@ -8,11 +8,14 @@ export type Article = {
   date: string;
   tags: string[];
   lang: "zh" | "en";
+  /** 封面可选：第 1 页里间隔分布，用来同时看到有封面与无封面的卡片。 */
+  cover?: string;
 };
 
 export const ARTICLES: Article[] = [
   {
     slug: "acceptance-scenarios-first",
+    cover: "/prototype/covers/cover-1.webp",
     title: "如何让 AI 先写验收场景",
     summary: "从一个模糊需求开始，写出一条可验证的操作路径，再让模型动手。顺序反了，返工就变成了常态。",
     date: "2026-11-18",
@@ -29,6 +32,7 @@ export const ARTICLES: Article[] = [
   },
   {
     slug: "searchable-local-knowledge-base",
+    cover: "/prototype/covers/cover-2.webp",
     title:
       "把三年积累的 AI 工作流搬进一个可搜索的本地知识库：从文件夹命名、切片策略到检索评测的完整复盘",
     summary: "最耗时间的不是建库，而是让切片后的片段还能读懂自己。这篇记录我踩过的命名、切分和召回问题。",
@@ -46,6 +50,7 @@ export const ARTICLES: Article[] = [
   },
   {
     slug: "playwright-form-regression",
+    cover: "/prototype/covers/cover-3.webp",
     title: "用 Playwright 给一个不会报错的表单写回归",
     summary: "它不崩，只是悄悄少存了一个字段。这类 bug 只能靠断言写出来。",
     date: "2026-09-25",
@@ -62,6 +67,7 @@ export const ARTICLES: Article[] = [
   },
   {
     slug: "design-tokens-survive-redesign",
+    cover: "/prototype/covers/cover-4.webp",
     title: "Design tokens that survive a redesign",
     summary: "Tokens named after their role outlive the layout that produced them. A short note on what I keep and what I rename.",
     date: "2026-08-28",
@@ -78,6 +84,7 @@ export const ARTICLES: Article[] = [
   },
   {
     slug: "rag-before-evals",
+    cover: "/prototype/covers/cover-5.webp",
     title: "从零搭一个能用的 RAG，先别管评测",
     summary: "先用十篇真文章跑通召回，再谈指标。过早做评测只会优化一个你还没定义的问题。",
     date: "2026-07-30",
@@ -86,6 +93,7 @@ export const ARTICLES: Article[] = [
   },
   {
     slug: "solo-fullstack-complexity",
+    cover: "/prototype/covers/cover-6.webp",
     title: "单人维护一个全栈项目，我把复杂度花在哪里",
     summary: "删掉取数层、删掉状态库，把复杂度集中在内容模型上。",
     date: "2026-07-16",
