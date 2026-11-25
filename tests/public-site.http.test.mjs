@@ -29,7 +29,18 @@ before(async () => {
   server = spawn(
     "pnpm",
     ["exec", "next", "dev", "--hostname", "127.0.0.1", "--port", String(port)],
-    { cwd: projectRoot, stdio: ["ignore", "pipe", "pipe"] },
+    {
+      cwd: projectRoot,
+      stdio: ["ignore", "pipe", "pipe"],
+      env: {
+        ...process.env,
+        BETTER_AUTH_URL: "",
+        BETTER_AUTH_SECRET: "",
+        GOOGLE_CLIENT_ID: "",
+        GOOGLE_CLIENT_SECRET: "",
+        ADMIN_EMAILS: "",
+      },
+    },
   );
   server.stdout.setEncoding("utf8").on("data", (chunk) => (serverOutput += chunk));
   server.stderr.setEncoding("utf8").on("data", (chunk) => (serverOutput += chunk));
@@ -80,4 +91,42 @@ test("双语首页返回对应界面语言和定稿工作流程文案", async ()
 test("不支持的界面语言返回 HTTP 404", async () => {
   const response = await fetch(`${origin}/fr`, { redirect: "manual" });
   assert.equal(response.status, 404);
+});
+
+test("公开首页提供可关闭的可选登录提示", async () => {
+  const response = await fetch(`${origin}/zh`);
+  const html = await response.text();
+
+  assert.equal(response.status, 200);
+  assert.match(html, /继续匿名浏览/);
+  assert.match(html, /使用 Google 登录/);
+  assert.match(html, /关闭登录提示/);
+});
+
+test("未配置 Google OAuth 时登录状态按匿名返回", async () => {
+  const response = await fetch(`${origin}/api/auth/get-session`);
+
+  assert.equal(response.status, 200);
+  assert.equal(await response.json(), null);
+});
+
+test("未配置 Google OAuth 时登录失败不会中断匿名浏览", async () => {
+  const response = await fetch(`${origin}/api/auth/sign-in/social`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ provider: "google", callbackURL: `${origin}/zh` }),
+  });
+
+  assert.equal(response.status, 503);
+  const home = await fetch(`${origin}/zh`);
+  assert.equal(home.status, 200);
+});
+
+test("未登录访问后台会被引导回公开登录入口", async () => {
+  const response = await fetch(`${origin}/admin`, { redirect: "manual" });
+  const destination = new URL(response.headers.get("location"), origin);
+
+  assert.equal(response.status, 307);
+  assert.equal(destination.pathname, "/zh");
+  assert.equal(destination.searchParams.get("next"), "/admin");
 });
