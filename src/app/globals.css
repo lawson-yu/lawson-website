@@ -121,6 +121,13 @@
   * {
     @apply border-border outline-ring/50;
   }
+  input:focus {
+    outline: none;
+  }
+  input:focus-visible {
+    outline: 2px solid currentColor;
+    outline-offset: 2px;
+  }
   body {
     @apply bg-background text-foreground;
   }

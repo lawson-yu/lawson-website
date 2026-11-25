@@ -3,6 +3,7 @@
 // 共用 chrome（#29 已定）：整站只有右上角一组控件，向下滚动收起，向上滚动或回到顶部出现。
 
 import { Menu } from "lucide-react";
+import Link from "next/link";
 import { useEffect, useState } from "react";
 
 export function ProtoChrome() {
@@ -46,7 +47,7 @@ export function ProtoChrome() {
   }, [open]);
 
   return (
-    <div className="proto-chrome" data-shown={shown || undefined}>
+    <div className="proto-chrome" data-shown={shown || open || undefined} inert={!shown && !open}>
       <div className="proto-seg" role="group" aria-label="界面语言">
         <button aria-pressed={locale === "zh"} onClick={() => setLocale("zh")}>
           中
@@ -71,15 +72,15 @@ export function ProtoChrome() {
             <p className="proto-mark">LAWSON</p>
             <ul>
               <li>
-                <a href="#home">首页</a>
+                <Link href="/">首页</Link>
               </li>
               <li>
-                <a href="#articles" aria-current="page">
+                <Link href="/prototype/article-list" aria-current="page">
                   文章
-                </a>
+                </Link>
               </li>
               <li>
-                <a href="#works">作品</a>
+                <Link href="/#works">作品</Link>
               </li>
             </ul>
           </nav>

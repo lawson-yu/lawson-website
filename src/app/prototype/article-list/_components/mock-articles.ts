@@ -8,8 +8,8 @@ export type Article = {
   date: string;
   tags: string[];
   lang: "zh" | "en";
-  /** 封面可选：第 1 页里间隔分布，用来同时看到有封面与无封面的卡片。 */
-  cover?: string;
+  /** 示例封面，正式内容需提供图片。 */
+  cover: string;
 };
 
 export const ARTICLES: Article[] = [
@@ -24,6 +24,7 @@ export const ARTICLES: Article[] = [
   },
   {
     slug: "acceptance-in-prompt",
+    cover: "/prototype/covers/cover-6.webp",
     title: "我为什么把验收标准写进提示词",
     summary: "验收标准放在 issue 里，模型读不到；写进提示词，它才会在每个回合自己对照。",
     date: "2026-11-04",
@@ -42,6 +43,7 @@ export const ARTICLES: Article[] = [
   },
   {
     slug: "claude-project-instructions",
+    cover: "/prototype/covers/cover-5.webp",
     title: "Claude 项目指令的三种写法，以及它们各自失控的方式",
     summary: "清单式、角色式、示例式，各有各的失败姿势。附上我最后留下的那一种。",
     date: "2026-10-09",
@@ -59,6 +61,7 @@ export const ARTICLES: Article[] = [
   },
   {
     slug: "context-window-400k",
+    cover: "/prototype/covers/cover-6.webp",
     title: "上下文窗口不是越大越好：一次 40 万 token 的教训",
     summary: "塞满之后模型开始忽略中间的内容，成本翻了三倍，答案质量反而下降。",
     date: "2026-09-11",
@@ -76,6 +79,7 @@ export const ARTICLES: Article[] = [
   },
   {
     slug: "stable-json-output",
+    cover: "/prototype/covers/cover-3.webp",
     title: "让 LLM 稳定输出 JSON 的四个约束",
     summary: "schema、示例、拒绝分支和重试上限。缺一个，夜里就会收到解析失败的告警。",
     date: "2026-08-14",
@@ -102,6 +106,7 @@ export const ARTICLES: Article[] = [
   },
   {
     slug: "smooth-scroll-direction",
+    cover: "/prototype/covers/cover-3.webp",
     title: "逐帧对比：为什么平滑滚动会让滚动方向判定出错",
     summary: "收尾阶段每帧回漂约 1px，逐帧比较就会被判成向上滚动。改成累计位移之后才稳定。",
     date: "2026-07-02",
@@ -110,6 +115,7 @@ export const ARTICLES: Article[] = [
   },
   {
     slug: "prompts-are-not-docs",
+    cover: "/prototype/covers/cover-1.webp",
     title: "提示词不是文档：给同事看的 AI 编程约定该怎么写",
     summary: "文档描述状态，提示词约束动作。混着写，两边都读不懂。",
     date: "2026-06-18",
@@ -118,6 +124,7 @@ export const ARTICLES: Article[] = [
   },
   {
     slug: "one-vps-docker",
+    cover: "/prototype/covers/cover-6.webp",
     title: "用 Docker 在一台 VPS 上跑完全部服务",
     summary: "单实例、单反向代理、单备份脚本。省下的不是钱，是要维护的心智。",
     date: "2026-06-04",
@@ -126,6 +133,7 @@ export const ARTICLES: Article[] = [
   },
   {
     slug: "tickets-before-code",
+    cover: "/prototype/covers/cover-5.webp",
     title: "把需求拆成 ticket 之后，AI 写代码才不再跑偏",
     summary: "一张票只回答一个问题，工作流里的每一步都有可验证的出口，模型才有地方停下。",
     date: "2026-05-21",
@@ -134,6 +142,7 @@ export const ARTICLES: Article[] = [
   },
   {
     slug: "point-cloud-mobile-fallback",
+    cover: "/prototype/covers/cover-3.webp",
     title: "Three.js 点云角色的移动端降级方案",
     summary: "同一机位截一张静态图，加载中、减少动态效果、加载失败三种状态共用它。",
     date: "2026-05-07",
@@ -142,6 +151,7 @@ export const ARTICLES: Article[] = [
   },
   {
     slug: "dark-ui-hierarchy",
+    cover: "/prototype/covers/cover-4.webp",
     title: "深色界面里最难调的不是对比度，是层次",
     summary: "对比度查表就能过，层次要靠三级底色和一条发丝线撑住。",
     date: "2026-04-23",
@@ -150,6 +160,7 @@ export const ARTICLES: Article[] = [
   },
   {
     slug: "chinese-search",
+    cover: "/prototype/covers/cover-2.webp",
     title: "给中文内容做搜索：为什么内置全文检索不够用",
     summary: "中文没有空格，按词切分的全文检索认不出连续词组。归一化之后用 ILIKE 反而够用。",
     date: "2026-04-09",
@@ -158,6 +169,7 @@ export const ARTICLES: Article[] = [
   },
   {
     slug: "failed-weekly-report-automation",
+    cover: "/prototype/covers/cover-6.webp",
     title: "一次失败的自动化：把周报交给 AI 之后",
     summary: "它写得很像，但每周都要我改回原样。问题不在模型，在输入。",
     date: "2026-03-26",
@@ -166,6 +178,7 @@ export const ARTICLES: Article[] = [
   },
   {
     slug: "figma-to-code-layers",
+    cover: "/prototype/covers/cover-4.webp",
     title: "从 Figma 到代码，我删掉了哪些中间层",
     summary: "不留组件映射表，不留设计稿快照。留下的只有一套单位和四个圆角。",
     date: "2026-03-12",
@@ -174,6 +187,7 @@ export const ARTICLES: Article[] = [
   },
   {
     slug: "prompt-caching-cost",
+    cover: "/prototype/covers/cover-2.webp",
     title: "Prompt caching 的成本账",
     summary: "命中率超过多少才值得改写提示词结构，我按自己的调用量算了一遍。",
     date: "2026-02-26",
@@ -182,6 +196,7 @@ export const ARTICLES: Article[] = [
   },
   {
     slug: "three-things-in-review",
+    cover: "/prototype/covers/cover-5.webp",
     title: "代码评审时我只看三件事",
     summary: "改动能不能追溯到一个请求，边界有没有校验，失败之后数据还在不在。",
     date: "2026-02-12",
@@ -190,6 +205,7 @@ export const ARTICLES: Article[] = [
   },
   {
     slug: "translate-technical-terms",
+    cover: "/prototype/covers/cover-1.webp",
     title: "中文写作里的技术词该不该翻译",
     summary: "读者在搜索框里输入的是英文原词还是译名，决定了正文该用哪个。",
     date: "2026-01-29",
@@ -198,6 +214,7 @@ export const ARTICLES: Article[] = [
   },
   {
     slug: "css-unit-system",
+    cover: "/prototype/covers/cover-4.webp",
     title: "用 CSS 单位系统对齐一套设计稿",
     summary: "一个 --u 撑住全部尺寸，换断点只改它的定义。",
     date: "2026-01-15",
@@ -206,6 +223,7 @@ export const ARTICLES: Article[] = [
   },
   {
     slug: "visitor-records-two-tables",
+    cover: "/prototype/covers/cover-6.webp",
     title: "把访问记录做成两张表就够了",
     summary: "账号一张、访问一张，保留期写在清理任务里，删除按账号级联。",
     date: "2025-12-18",
@@ -214,6 +232,7 @@ export const ARTICLES: Article[] = [
   },
   {
     slug: "no-cover-images",
+    cover: "/prototype/covers/cover-1.webp",
     title: "为什么我不再给文章加封面图",
     summary: "列表里多一张图，扫读就慢一拍。信息密度应该留给标题和摘要。",
     date: "2025-11-27",
@@ -222,6 +241,7 @@ export const ARTICLES: Article[] = [
   },
   {
     slug: "bilingual-without-translating",
+    cover: "/prototype/covers/cover-5.webp",
     title: "Shipping a bilingual site without translating the content",
     summary: "Interface in two languages, articles in the language they were written in. What that costs and why it is worth it.",
     date: "2025-10-30",
@@ -230,6 +250,7 @@ export const ARTICLES: Article[] = [
   },
   {
     slug: "first-post",
+    cover: "/prototype/covers/cover-2.webp",
     title: "第一篇文章：我打算在这里写什么",
     summary: "AI 工具怎么用、卡在哪里、最后留下了什么。只写自己跑通过的部分。",
     date: "2025-09-25",

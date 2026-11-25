@@ -2,7 +2,7 @@
 
 // 原型状态（issue #30）：列表的筛选、分页与返回定位。
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { ARTICLES, type Article } from "./mock-articles";
 
 export const PAGE_SIZE = 10;
@@ -19,8 +19,11 @@ export function matchArticle(article: Article, { q, tag }: Conditions): boolean 
 
 export function useArticleListState() {
   const [q, setQ] = useState("");
+  const [searchDraft, setSearchDraft] = useState("");
   const [tag, setTag] = useState<string | null>(null);
   const [page, setPage] = useState(1);
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const loadMore = useCallback(() => setVisibleCount(count => count + PAGE_SIZE), []);
   const [detail, setDetail] = useState<Article | null>(null);
   const [restored, setRestored] = useState<string | null>(null);
 
@@ -37,6 +40,7 @@ export function useArticleListState() {
   useEffect(() => {
     if (!restored) return;
     const node = document.getElementById(`article-${restored}`);
+    node?.querySelector<HTMLButtonElement>(".mag-card__open, .mag-lead__content")?.focus({ preventScroll: true });
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     node?.scrollIntoView({ block: "center", behavior: reduced ? "auto" : "smooth" });
     const timer = window.setTimeout(() => setRestored(null), 2600);
@@ -45,29 +49,38 @@ export function useArticleListState() {
 
   return {
     q,
+    searchDraft,
+    setSearchDraft,
     tag,
     page: current,
     pageCount,
     items,
+    results,
+    visibleCount,
+    loadMore,
     total: results.length,
     detail,
     restored,
-    /** 边输入边过滤（与所参照的组件一致，#22 原定「提交后更新」）。 */
+    /** 提交关键词后更新结果。 */
     search(next: string) {
       setQ(next);
       setPage(1);
+      setVisibleCount(PAGE_SIZE);
     },
     pickTag(next: string | null) {
       setTag(next);
       setPage(1);
+      setVisibleCount(PAGE_SIZE);
     },
     goPage(next: number) {
       setPage(next);
     },
     clear() {
       setQ("");
+      setSearchDraft("");
       setTag(null);
       setPage(1);
+      setVisibleCount(PAGE_SIZE);
     },
     open(article: Article) {
       setDetail(article);
@@ -80,6 +93,7 @@ export function useArticleListState() {
     /** 评审用：一键跳到某个状态。 */
     preset(next: { q?: string; tag?: string | null; page?: number }) {
       setQ(next.q ?? "");
+      setSearchDraft(next.q ?? "");
       setTag(next.tag ?? null);
       setPage(next.page ?? 1);
       setDetail(null);

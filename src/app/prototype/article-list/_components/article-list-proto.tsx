@@ -2,12 +2,13 @@
 
 // 文章列表原型（issue #30）：卡片网格方案 + 共用 chrome 与状态工具条。
 
-import { useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { useState, type KeyboardEvent } from "react";
 import "./proto.css";
-import { ArticleCards } from "./article-cards";
-import { useArticleListState, type ListState } from "./list-state";
+import { ArticleMagazine } from "./article-magazine";
 import { ProtoChrome } from "./proto-chrome";
-import { Switcher } from "./switcher";
+import { HEADINGS, type HeadingVariant } from "./magazine-heading";
+import { useArticleListState, type ListState } from "./list-state";
 
 function DetailStub({ list }: { list: ListState }) {
   const article = list.detail!;
@@ -29,13 +30,43 @@ function DetailStub({ list }: { list: ListState }) {
 
 export function ArticleListProto() {
   const list = useArticleListState();
-  const [covers, setCovers] = useState(true);
+  const [headingRun, setHeadingRun] = useState(0);
+  const params = useSearchParams();
+  const variant = HEADINGS.find(heading => heading.id === params.get("variant"))?.id ?? "B";
+
+  function selectHeading(next: HeadingVariant) {
+    const url = new URL(window.location.href);
+    url.searchParams.set("variant", next);
+    url.hash = "";
+    window.history.replaceState(null, "", url);
+    if (next === variant) setHeadingRun(run => run + 1);
+    window.scrollTo({ top: 0, behavior: "instant" });
+  }
+
+  function cycleHeading(event: KeyboardEvent<HTMLDivElement>) {
+    if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+    event.preventDefault();
+    const index = HEADINGS.findIndex(heading => heading.id === variant);
+    const step = event.key === "ArrowRight" ? 1 : -1;
+    const next = (index + step + HEADINGS.length) % HEADINGS.length;
+    selectHeading(HEADINGS[next].id);
+    event.currentTarget.querySelectorAll("button")[next]?.focus();
+  }
 
   return (
     <div className="proto-root">
       <ProtoChrome />
-      {list.detail ? <DetailStub list={list} /> : <ArticleCards list={list} covers={covers} />}
-      <Switcher list={list} covers={covers} onToggleCovers={() => setCovers((value) => !value)} />
+      {list.detail ? <DetailStub list={list} /> : <ArticleMagazine list={list} variant={variant} headingRun={headingRun} />}
+      <aside className="proto-switch" aria-label="原型工具">
+        <div className="proto-switch__row"><span className="proto-switch__label">文章列表原型</span><span className="proto-switch__state">连续浏览 · {list.total} 篇</span></div>
+        {!list.detail && process.env.NODE_ENV !== "production" && (
+          <div className="mag-heading-options" role="group" aria-label="页头方案" onKeyDown={cycleHeading}>
+            {HEADINGS.map(heading => <button key={heading.id} type="button" aria-pressed={variant === heading.id} onClick={() => selectHeading(heading.id)}>{heading.id} {heading.name}</button>)}
+            <button type="button" onClick={() => selectHeading(variant)}>重播动效</button>
+          </div>
+        )}
+        <div className="proto-switch__row proto-switch__row--presets"><button onClick={list.clear}>清除筛选</button></div>
+      </aside>
     </div>
   );
 }
