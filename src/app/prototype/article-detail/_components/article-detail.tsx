@@ -34,7 +34,7 @@ const KNOWLEDGE = [
 
 export function ArticleDetail({ article, onBack, onTag }: {
   article?: Article;
-  onBack?: () => void;
+  onBack?: (restoreFocus: boolean) => void;
   onTag?: (tag: string) => void;
 }) {
   const params = useSearchParams();
@@ -73,7 +73,7 @@ export function ArticleDetail({ article, onBack, onTag }: {
       ? <><ArrowLeft size={17} aria-hidden="true" />{label}</>
       : <>{label}<ArrowUpRight size={17} aria-hidden="true" /></>;
     return onBack
-      ? <button className="reading-link" onClick={onBack}>{content}</button>
+      ? <button className="reading-link" onClick={event => onBack(event.detail === 0)}>{content}</button>
       : <a className="reading-link" href={LIST}>{content}</a>;
   };
 
@@ -86,7 +86,7 @@ export function ArticleDetail({ article, onBack, onTag }: {
     <main className={`reading reading--${variant.id.toLowerCase()}`}>
       <article lang={current.lang}>
         <header className="reading-hero" data-cover={!short || undefined}>
-          <div className="reading-hero__art"><MagazineCloud variant="B" /></div>
+          <div className="reading-hero__art"><MagazineCloud variant="B" personScale={1.25} /></div>
           <div className="reading-shell reading-opening">
             <div className="reading-title">
               {back("返回文章列表", "left")}

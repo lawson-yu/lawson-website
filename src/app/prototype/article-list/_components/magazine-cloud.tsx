@@ -6,7 +6,7 @@ import type { HeadingVariant } from "./magazine-heading";
 const vertexShader = `
   attribute vec3 a_position;
   attribute vec2 a_style;
-  uniform float u_time, u_aspect, u_dpr, u_person, u_hover, u_form;
+  uniform float u_time, u_aspect, u_dpr, u_person, u_hover, u_form, u_person_scale;
   uniform vec2 u_pointer;
   varying vec3 v_color;
   varying float v_alpha;
@@ -25,9 +25,9 @@ const vertexShader = `
       z = p.y * sin(pitch) + z * cos(pitch);
       float perspective = 1.0 / (1.0 - z * 0.28);
       float mobile = 1.0 - step(1.35, u_aspect);
-      float scale = mix(1.78, 1.38, mobile);
+      float scale = mix(1.78, 1.38, mobile) * u_person_scale;
       vec2 position = vec2(x * scale / u_aspect, y * scale) * perspective;
-      position += vec2(mix(0.43, 0.48, mobile), mix(-0.06, 0.12, mobile));
+      position += vec2(mix(0.43, 0.48, mobile), mix(-0.06, 0.12, mobile) - (u_person_scale - 1.0) * 0.8);
       gl_Position = vec4(position, 0.0, 1.0);
       gl_PointSize = mix(1.4, 2.05, noise) * u_dpr;
       v_color = mix(vec3(0.48, 0.70, 0.80), vec3(0.92, 0.97, 1.0), clamp(0.6 + p.y * 0.5 + z * 0.3, 0.0, 1.0));
@@ -172,7 +172,7 @@ function makeScenery(variant: HeadingVariant) {
   return [new Float32Array(triangles), new Float32Array(lines), new Float32Array(points)];
 }
 
-function startCloud(canvas: HTMLCanvasElement, variant: HeadingVariant) {
+function startCloud(canvas: HTMLCanvasElement, variant: HeadingVariant, personScale: number) {
   const art = canvas.parentElement!;
   const abort = new AbortController();
   let disposed = false;
@@ -237,6 +237,7 @@ function startCloud(canvas: HTMLCanvasElement, variant: HeadingVariant) {
       const pointsUniform = uniform("u_points");
       const pointerUniform = uniform("u_pointer");
       gl.useProgram(program);
+      gl.uniform1f(uniform("u_person_scale"), personScale);
       gl.enable(gl.BLEND);
       gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
       gl.clearColor(0, 0, 0, 0);
@@ -347,7 +348,7 @@ function startCloud(canvas: HTMLCanvasElement, variant: HeadingVariant) {
   return stop;
 }
 
-export function MagazineCloud({ variant }: { variant: HeadingVariant }) {
+export function MagazineCloud({ variant, personScale = 1 }: { variant: HeadingVariant; personScale?: number }) {
   const canvas = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -357,7 +358,7 @@ export function MagazineCloud({ variant }: { variant: HeadingVariant }) {
     let stop = () => {};
     const update = () => {
       stop();
-      stop = motion.matches ? () => {} : startCloud(element, variant);
+      stop = motion.matches ? () => {} : startCloud(element, variant, personScale);
     };
     update();
     motion.addEventListener("change", update);
@@ -365,7 +366,7 @@ export function MagazineCloud({ variant }: { variant: HeadingVariant }) {
       motion.removeEventListener("change", update);
       stop();
     };
-  }, [variant]);
+  }, [variant, personScale]);
 
   return <div className="mag-heading__art" aria-hidden="true"><div className="mag-heading__fallback" /><canvas ref={canvas} /></div>;
 }

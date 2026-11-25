@@ -7,13 +7,14 @@
 }
 .reading-shell { width: min(var(--reading-width), calc(100% - 2 * var(--gutter))); margin-inline: auto; }
 .reading-hero { position: relative; isolation: isolate; }
-.reading-hero__art { position: absolute; z-index: -1; inset: 0 0 auto; height: clamp(340px, 35vw, 520px); overflow: clip; opacity: .78; }
+.reading-hero__art { position: absolute; z-index: -1; inset: 0 0 auto; height: clamp(360px, 39vw, 570px); overflow: clip; opacity: .93; }
+.reading-hero__art .mag-heading__fallback { background-size: auto 185%; }
 .reading-hero__art::after {
   content: "";
   position: absolute;
   inset: 0;
   pointer-events: none;
-  background: linear-gradient(to bottom, transparent 45%, #000 98%), linear-gradient(90deg, #000 2%, rgb(0 0 0 / .76) 35%, transparent 82%);
+  background: linear-gradient(to bottom, transparent 45%, #000 98%), linear-gradient(90deg, rgb(0 0 0 / .25), rgb(0 0 0 / .52) 28%, transparent 72%);
 }
 .reading-opening {
   position: relative;
@@ -119,7 +120,7 @@
 @media (max-width: 700px) {
   .reading .reading-opening { gap: 1.25rem; padding-top: 5.5rem; }
   .reading--b .reading-hero[data-cover] .reading-opening { grid-template-columns: minmax(0, 1fr); gap: 1.25rem; }
-  .reading-hero__art::after { background: linear-gradient(to bottom, transparent 18%, #000 98%), linear-gradient(90deg, rgb(0 0 0 / .8), rgb(0 0 0 / .18)); }
+  .reading-hero__art::after { background: linear-gradient(to bottom, transparent 18%, #000 98%), linear-gradient(90deg, rgb(0 0 0 / .6), rgb(0 0 0 / .25)); }
   .reading-cover { border-radius: 12px; aspect-ratio: 16 / 9; }
   .reading-title h1 { margin-top: .6rem; }
   .reading-switch { display: grid; justify-items: center; gap: 0; padding: .2rem .45rem .35rem; }

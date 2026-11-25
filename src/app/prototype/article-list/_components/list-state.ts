@@ -2,7 +2,7 @@
 
 // 原型状态（issue #30）：列表的筛选、分页与返回定位。
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ARTICLES, type Article } from "./mock-articles";
 
 export const PAGE_SIZE = 10;
@@ -25,7 +25,7 @@ export function useArticleListState(initialTag: string | null = null) {
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const loadMore = useCallback(() => setVisibleCount(count => count + PAGE_SIZE), []);
   const [detail, setDetail] = useState<Article | null>(null);
-  const [restored, setRestored] = useState<string | null>(null);
+  const returnTarget = useRef<{ slug: string; restoreFocus: boolean } | null>(null);
 
   const results = useMemo(
     () => ARTICLES.filter((article) => matchArticle(article, { q, tag })),
@@ -36,16 +36,17 @@ export function useArticleListState(initialTag: string | null = null) {
   const current = Math.min(page, pageCount);
   const items = results.slice((current - 1) * PAGE_SIZE, current * PAGE_SIZE);
 
-  // 从详情返回：让原条目进入视野，并短暂标出它。
   useEffect(() => {
-    if (!restored) return;
-    const node = document.getElementById(`article-${restored}`);
-    node?.querySelector<HTMLButtonElement>(".mag-card__open, .mag-lead__content")?.focus({ preventScroll: true });
+    if (detail || !returnTarget.current) return;
+    const { slug, restoreFocus } = returnTarget.current;
+    returnTarget.current = null;
+    const node = document.getElementById(`article-${slug}`);
+    if (restoreFocus) {
+      node?.querySelector<HTMLButtonElement>(".mag-card__open, .mag-lead__content")?.focus({ preventScroll: true });
+    }
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     node?.scrollIntoView({ block: "center", behavior: reduced ? "auto" : "smooth" });
-    const timer = window.setTimeout(() => setRestored(null), 2600);
-    return () => window.clearTimeout(timer);
-  }, [restored]);
+  }, [detail]);
 
   function closeDetail() {
     if (window.location.hash) {
@@ -67,7 +68,6 @@ export function useArticleListState(initialTag: string | null = null) {
     loadMore,
     total: results.length,
     detail,
-    restored,
     /** 提交关键词后更新结果。 */
     search(next: string) {
       setQ(next);
@@ -92,9 +92,9 @@ export function useArticleListState(initialTag: string | null = null) {
     open(article: Article) {
       setDetail(article);
     },
-    back() {
+    back(restoreFocus: boolean) {
       if (!detail) return;
-      setRestored(detail.slug);
+      returnTarget.current = { slug: detail.slug, restoreFocus };
       closeDetail();
     },
     browseTag(next: string) {

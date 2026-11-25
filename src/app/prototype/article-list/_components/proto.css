@@ -247,11 +247,6 @@ body:has(.proto-root) {
   transition: border-color var(--dur-ui) var(--ease-out), background-color var(--dur-ui) var(--ease-out);
 }
 
-.ac-card[data-restored] {
-  border-color: var(--lavender);
-  background: var(--panel);
-}
-
 .ac-card__cover {
   aspect-ratio: 16 / 10;
   overflow: hidden;
@@ -351,10 +346,6 @@ body:has(.proto-root) {
   border-radius: calc(var(--u) * 10);
   color: var(--ink-1);
   transition: background-color var(--dur-ui) var(--ease-out), border-color var(--dur-ui) var(--ease-out), color var(--dur-ui) var(--ease-out);
-}
-
-.ac-card[data-restored] .ac-card__title button {
-  color: var(--lavender);
 }
 
 /* ── 空状态 ───────────────────────────────────────────────── */

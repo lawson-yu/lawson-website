@@ -90,7 +90,6 @@ export function ArticleCards({ list, covers }: { list: ListState; covers: boolea
                 key={article.slug}
                 id={`article-${article.slug}`}
                 className="ac-card"
-                data-restored={list.restored === article.slug || undefined}
               >
                 {covers ? (
                   <div className="ac-card__cover">
