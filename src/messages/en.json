@@ -6,7 +6,14 @@
     "language": "Language",
     "menuTitle": "Site navigation",
     "openMenu": "Open menu",
-    "closeMenu": "Close menu"
+    "closeMenu": "Close menu",
+    "signIn": "Sign in with Google",
+    "signedIn": "Signed in",
+    "signOut": "Sign out",
+    "loginPromptLabel": "Optional sign-in notice",
+    "loginPrompt": "Google sign-in is optional. You can keep browsing anonymously.",
+    "dismissLoginPrompt": "Dismiss sign-in notice",
+    "googleUnavailable": "Google sign-in is temporarily unavailable. You can keep browsing anonymously."
   },
   "Home": {
     "readArticles": "Browse articles",
