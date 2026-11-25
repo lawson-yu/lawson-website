@@ -17,10 +17,10 @@ export function matchArticle(article: Article, { q, tag }: Conditions): boolean 
   return `${article.title} ${article.summary}`.toLowerCase().includes(needle);
 }
 
-export function useArticleListState() {
+export function useArticleListState(initialTag: string | null = null) {
   const [q, setQ] = useState("");
   const [searchDraft, setSearchDraft] = useState("");
-  const [tag, setTag] = useState<string | null>(null);
+  const [tag, setTag] = useState(initialTag);
   const [page, setPage] = useState(1);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const loadMore = useCallback(() => setVisibleCount(count => count + PAGE_SIZE), []);
@@ -46,6 +46,13 @@ export function useArticleListState() {
     const timer = window.setTimeout(() => setRestored(null), 2600);
     return () => window.clearTimeout(timer);
   }, [restored]);
+
+  function closeDetail() {
+    if (window.location.hash) {
+      window.history.replaceState(null, "", window.location.pathname + window.location.search);
+    }
+    setDetail(null);
+  }
 
   return {
     q,
@@ -88,7 +95,16 @@ export function useArticleListState() {
     back() {
       if (!detail) return;
       setRestored(detail.slug);
-      setDetail(null);
+      closeDetail();
+    },
+    browseTag(next: string) {
+      setQ("");
+      setSearchDraft("");
+      setTag(next);
+      setPage(1);
+      setVisibleCount(PAGE_SIZE);
+      closeDetail();
+      requestAnimationFrame(() => document.getElementById("mag-articles")?.scrollIntoView());
     },
     /** 评审用：一键跳到某个状态。 */
     preset(next: { q?: string; tag?: string | null; page?: number }) {
