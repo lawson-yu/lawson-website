@@ -8,7 +8,7 @@
 .reading-shell { width: min(var(--reading-width), calc(100% - 2 * var(--gutter))); margin-inline: auto; }
 .reading-hero { position: relative; isolation: isolate; }
 .reading-hero__art { position: absolute; z-index: -1; inset: 0 0 auto; height: clamp(360px, 39vw, 570px); overflow: clip; opacity: .93; }
-.reading-hero__art .mag-heading__fallback { background-size: auto 185%; }
+.reading-hero__art .mag-heading__fallback { background-size: auto 157.25%; }
 .reading-hero__art::after {
   content: "";
   position: absolute;
@@ -21,7 +21,7 @@
   display: grid;
   align-items: end;
   gap: 2rem;
-  padding-top: clamp(6rem, 10vw, 9rem);
+  padding-top: calc(clamp(6rem, 10vw, 9rem) + var(--reading-opening-offset, 0px));
 }
 .reading-title { min-width: 0; }
 .reading-link { min-height: 44px; display: inline-flex; align-items: center; gap: .6rem; color: #d5d5db; font-size: .875rem; }
@@ -92,6 +92,7 @@
 .reading-switch button:hover { background: var(--fill-3); }
 .reading-switch button[aria-pressed="true"] { background: #f3f2f1; color: #141416; }
 .reading--b .reading-hero[data-cover] .reading-opening { grid-template-columns: minmax(0, 1fr) minmax(0, .95fr); align-items: center; gap: clamp(2rem, 5vw, 5rem); }
+.reading--a { --reading-opening-offset: 80px; }
 .reading--b .reading-title h1 { font-size: clamp(2.45rem, 4vw, 3.9rem); }
 .reading--b .reading-cover { aspect-ratio: 4 / 3; }
 .reading--b .reading-layout { justify-content: start; }
@@ -118,7 +119,7 @@
   .reading--c .reading-layout { width: min(var(--reading-measure), calc(100% - 2 * var(--gutter))); }
 }
 @media (max-width: 700px) {
-  .reading .reading-opening { gap: 1.25rem; padding-top: 5.5rem; }
+  .reading .reading-opening { gap: 1.25rem; padding-top: calc(5.5rem + var(--reading-opening-offset, 0px)); }
   .reading--b .reading-hero[data-cover] .reading-opening { grid-template-columns: minmax(0, 1fr); gap: 1.25rem; }
   .reading-hero__art::after { background: linear-gradient(to bottom, transparent 18%, #000 98%), linear-gradient(90deg, rgb(0 0 0 / .6), rgb(0 0 0 / .25)); }
   .reading-cover { border-radius: 12px; aspect-ratio: 16 / 9; }

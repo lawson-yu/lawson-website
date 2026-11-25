@@ -86,7 +86,7 @@ export function ArticleDetail({ article, onBack, onTag }: {
     <main className={`reading reading--${variant.id.toLowerCase()}`}>
       <article lang={current.lang}>
         <header className="reading-hero" data-cover={!short || undefined}>
-          <div className="reading-hero__art"><MagazineCloud variant="B" personScale={1.25} /></div>
+          <div className="reading-hero__art"><MagazineCloud variant="B" personScale={1.0625} /></div>
           <div className="reading-shell reading-opening">
             <div className="reading-title">
               {back("返回文章列表", "left")}
