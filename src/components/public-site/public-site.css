@@ -37,7 +37,7 @@ body {
   margin: 0;
   background: var(--site-bg);
   color: var(--site-ink);
-  font-family: "Helvetica Neue", Inter, Arial, sans-serif;
+  font-family: "DM Sans", Arial, sans-serif;
 }
 
 button,
