@@ -1,0 +1,127 @@
+import { ArrowUpRight } from "lucide-react";
+import { getTranslations } from "next-intl/server";
+import { Link } from "@/i18n/navigation";
+import "./home.css";
+
+const workflow = [
+  {
+    step: "01",
+    title: "理解问题",
+    timing: "开始 · 了解背景",
+    description: "从目标、背景与约束出发，找到真正需要解决的问题。",
+  },
+  {
+    step: "02",
+    title: "明确方向",
+    timing: "前期 · 对齐需求",
+    description: "梳理需求与用户路径，一起确认要做什么。",
+  },
+  {
+    step: "03",
+    title: "设计与开发",
+    timing: "中期 · 持续共创",
+    description: "从体验设计到功能实现，让想法逐步成为可用的产品。",
+  },
+  {
+    step: "04",
+    title: "上线与迭代",
+    timing: "发布后 · 持续改进",
+    description: "完成上线，观察反馈，让产品随着真实需求成长。",
+  },
+];
+
+const services = [
+  {
+    title: "UI 与交互设计",
+    description: "理清用户路径，把想法变成清晰、自然的体验。",
+  },
+  {
+    title: "前端网站开发",
+    description: "还原设计细节，让网站在每种屏幕上流畅呈现。",
+  },
+  {
+    title: "全栈产品开发",
+    description: "连接界面、业务与数据，交付完整可用的产品。",
+  },
+  {
+    title: "AI Agent 开发",
+    description: "围绕实际任务连接工具，让重复工作自动运转。",
+  },
+];
+
+export default async function HomePage() {
+  const t = await getTranslations("Home");
+
+  return (
+    <main className="home-page">
+      <section className="home-hero" id="top" aria-label="LAWSON">
+        <div className="home-hero__character" data-character-stage="static-fallback">
+          <picture>
+            <source
+              media="(max-width: 767px)"
+              srcSet="/images/character/static-mobile.webp"
+            />
+            <img
+              src="/images/character/static-desktop.webp"
+              alt={t("characterAlt")}
+              fetchPriority="high"
+            />
+          </picture>
+          <span className="home-hero__wordmark" aria-hidden="true">
+            LAWSON
+          </span>
+        </div>
+        <div className="home-hero__content" data-home-content-slot>
+          <p className="home-hero__slogan">STAY CURIOUS. KEEP BUILDING.</p>
+          {/* #46 在此补入正式介绍与可配置的联系入口。 */}
+          <div className="home-hero__actions">
+            <Link className="home-hero__primary" href="/articles">
+              {t("readArticles")}
+              <ArrowUpRight aria-hidden="true" size={16} />
+            </Link>
+            <a className="home-hero__secondary" href="#contact">
+              {t("contact")}
+            </a>
+          </div>
+        </div>
+        <p className="home-hero__explore" aria-hidden="true">
+          {t("explore")}
+        </p>
+      </section>
+
+      <section className="home-section home-process" aria-labelledby="process-title">
+        <div className="home-section__heading">
+          <h2 id="process-title">{t("processTitle")}</h2>
+          <p>{t("processDescription")}</p>
+        </div>
+        <ol className="home-process__list">
+          {workflow.map((item) => (
+            <li key={item.step}>
+              <span className="home-process__step">{item.step}</span>
+              <div>
+                <h3>{item.title}</h3>
+                <p className="home-process__timing">{item.timing}</p>
+                <p>{item.description}</p>
+              </div>
+            </li>
+          ))}
+        </ol>
+      </section>
+
+      <section className="home-section home-services" aria-labelledby="services-title">
+        <div className="home-section__heading">
+          <h2 id="services-title">{t("servicesTitle")}</h2>
+          <p>{t("servicesDescription")}</p>
+        </div>
+        <ul className="home-services__list">
+          {services.map((service) => (
+            <li key={service.title}>
+              <h3>{service.title}</h3>
+              <p>{service.description}</p>
+            </li>
+          ))}
+        </ul>
+      </section>
+    </main>
+  );
+}

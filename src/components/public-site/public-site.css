@@ -1,0 +1,286 @@
+@font-face {
+  font-family: "DM Sans";
+  src: url("/fonts/DM-Sans-Variable.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Titan One";
+  src: url("/fonts/Titan-One-Regular.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
+
+:root {
+  --site-bg: #000;
+  --site-panel: #121214;
+  --site-panel-raised: #18181a;
+  --site-rule: rgb(252 252 252 / 12%);
+  --site-ink: #fcfcfc;
+  --site-muted: #a4a4aa;
+  --site-glass: rgb(24 24 26 / 78%);
+  --site-glass-filter: blur(24px) saturate(1.4);
+  --site-cyan: #a9d9ed;
+}
+
+html {
+  background: var(--site-bg);
+  color-scheme: dark;
+  scroll-behavior: auto;
+}
+
+body {
+  min-height: 100%;
+  margin: 0;
+  background: var(--site-bg);
+  color: var(--site-ink);
+  font-family: "DM Sans", Arial, sans-serif;
+}
+
+button,
+a {
+  -webkit-tap-highlight-color: transparent;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+a:focus-visible,
+button:focus-visible {
+  outline: 2px solid var(--site-cyan);
+  outline-offset: 3px;
+}
+
+.public-content {
+  position: relative;
+  z-index: 1;
+  margin-bottom: 100svh;
+  background: var(--site-bg);
+}
+
+.public-chrome {
+  position: fixed;
+  z-index: 40;
+  top: 20px;
+  right: clamp(20px, 4vw, 64px);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: opacity 240ms cubic-bezier(.23, 1, .32, 1), visibility 0s;
+}
+
+.public-chrome[data-hidden] {
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 240ms cubic-bezier(.23, 1, .32, 1), visibility 0s 240ms;
+}
+
+.public-language {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--site-rule);
+  border-radius: 999px;
+  background: rgb(18 18 20 / 62%);
+  -webkit-backdrop-filter: var(--site-glass-filter);
+  backdrop-filter: var(--site-glass-filter);
+}
+
+.public-language button {
+  min-width: 36px;
+  height: 28px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--site-muted);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.public-language button[aria-pressed="true"] {
+  background: rgb(252 252 252 / 18%);
+  color: var(--site-ink);
+}
+
+.public-icon {
+  display: inline-grid;
+  width: 40px;
+  height: 40px;
+  place-items: center;
+  border: 1px solid var(--site-rule);
+  border-radius: 999px;
+  background: rgb(18 18 20 / 62%);
+  -webkit-backdrop-filter: var(--site-glass-filter);
+  backdrop-filter: var(--site-glass-filter);
+  color: var(--site-ink);
+  cursor: pointer;
+}
+
+.public-menu {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  overflow: visible;
+  border: 0;
+  background: transparent;
+  color: var(--site-ink);
+}
+
+.public-menu::backdrop {
+  background: rgb(0 0 0 / 42%);
+  animation: public-scrim-in 220ms ease-out both;
+}
+
+.public-menu__panel {
+  position: fixed;
+  top: 74px;
+  right: clamp(20px, 4vw, 64px);
+  width: min(360px, calc(100vw - 40px));
+  padding: 8px 24px 24px;
+  border: 1px solid var(--site-rule);
+  border-radius: 20px;
+  background: var(--site-glass);
+  -webkit-backdrop-filter: var(--site-glass-filter);
+  backdrop-filter: var(--site-glass-filter);
+  box-shadow: 0 28px 70px rgb(0 0 0 / 55%);
+  transform-origin: 100% 0;
+  animation: public-menu-in 300ms cubic-bezier(.16, 1, .3, 1) both;
+}
+
+.public-menu__heading {
+  display: flex;
+  min-height: 52px;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--site-rule);
+}
+
+.public-wordmark {
+  font-family: "Titan One", sans-serif;
+  font-size: 20px;
+  letter-spacing: -.04em;
+  line-height: .86;
+}
+
+.public-menu__links {
+  display: flex;
+  flex-direction: column;
+}
+
+.public-menu__links a {
+  display: flex;
+  min-height: 52px;
+  align-items: center;
+  border-bottom: 1px solid var(--site-rule);
+  font-family: "DM Sans", sans-serif;
+  font-size: clamp(20px, 1.6vw, 24px);
+  letter-spacing: -.02em;
+  animation: public-item-in 360ms cubic-bezier(.16, 1, .3, 1) both;
+}
+
+.public-menu__links a:nth-child(2) { animation-delay: 50ms; }
+.public-menu__links a:nth-child(3) { animation-delay: 100ms; }
+.public-menu .public-language { margin-top: 16px; }
+
+.public-footer {
+  position: fixed;
+  z-index: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  display: flex;
+  min-height: 100svh;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: flex-end;
+  gap: 28px;
+  box-sizing: border-box;
+  padding: 48px clamp(24px, 7vw, 110px);
+  background: radial-gradient(ellipse at 50% 100%, #274457, #111e2b 40%, #0b1119 75%);
+}
+
+.public-footer__wordmark {
+  font-family: "Titan One", "Arial Black", sans-serif;
+  font-size: clamp(40px, 20vw, 400px);
+  letter-spacing: -.04em;
+  line-height: .86;
+}
+
+.public-footer nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 24px;
+  color: var(--site-muted);
+}
+
+.public-footer__top {
+  padding-bottom: 3px;
+  border-bottom: 1px solid var(--site-rule);
+}
+
+@keyframes public-menu-in {
+  from { opacity: 0; transform: translateY(-10px) scale(.94); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes public-item-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes public-scrim-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .public-menu__links a:hover,
+  .public-footer nav a:hover,
+  .public-footer__top:hover { color: var(--site-ink); }
+}
+
+@media (max-width: 767px) {
+  .public-chrome { top: 16px; right: 20px; }
+  .public-menu__panel {
+    top: 66px;
+    right: 20px;
+    width: calc(100vw - 40px);
+  }
+  .public-footer {
+    position: static;
+    min-height: 420px;
+    gap: 24px;
+    padding: 36px 20px;
+  }
+  .public-content { margin-bottom: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: .01ms !important;
+  }
+  .public-footer {
+    position: static;
+    min-height: 420px;
+  }
+  .public-content { margin-bottom: 0; }
+}
