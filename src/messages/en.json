@@ -1,0 +1,25 @@
+{
+  "Navigation": {
+    "home": "Home",
+    "articles": "Articles",
+    "projects": "Works",
+    "language": "Language",
+    "menuTitle": "Site navigation",
+    "openMenu": "Open menu",
+    "closeMenu": "Close menu"
+  },
+  "Home": {
+    "readArticles": "Browse articles",
+    "contact": "Contact me",
+    "explore": "Explore Below ↓",
+    "processTitle": "让想法，一步步落地。",
+    "processDescription": "从理解问题到上线迭代，四个阶段逐步推进。每一步保持沟通，一起确认下一步。",
+    "servicesTitle": "一起创造有用的东西。",
+    "servicesDescription": "从设计到开发，让好想法真正被使用。",
+    "characterAlt": "由点组成的人物静态图"
+  },
+  "Footer": {
+    "navigation": "站内导航",
+    "backToTop": "回到顶部"
+  }
+}
