@@ -1,21 +1,63 @@
 import "server-only";
 
 import { cacheTag } from "next/cache";
+import {
+  ARTICLE_BATCH_SIZE,
+  MAX_ARTICLE_LIMIT,
+  buildArticleSearchText,
+  normalizeSearchQuery,
+} from "@/lib/article-search";
 import { getPrisma } from "./db";
 
-export async function getPublishedArticles(tagId?: string, limit = 6) {
+export async function getPublishedArticles(
+  tagId?: string,
+  limit = ARTICLE_BATCH_SIZE,
+  query?: string,
+) {
   "use cache";
   cacheTag("articles");
 
-  return getPrisma().article.findMany({
+  const prisma = getPrisma();
+  const normalizedQuery = normalizeSearchQuery(query);
+  const safeLimit = Math.min(Math.max(limit, ARTICLE_BATCH_SIZE), MAX_ARTICLE_LIMIT);
+
+  if (normalizedQuery) {
+    // 历史已发布文章若尚未生成搜索文本，首次检索时同步回填以保证可检索
+    const missing = await prisma.article.findMany({
+      where: {
+        status: "PUBLISHED",
+        slug: { not: null },
+        firstPublishedAt: { not: null },
+        searchText: "",
+      },
+      select: { id: true, title: true, excerpt: true, body: true },
+    });
+    if (missing.length > 0) {
+      await Promise.all(
+        missing.map((article) => {
+          const text = buildArticleSearchText(article);
+          if (!text) return null;
+          return prisma.article.update({
+            where: { id: article.id },
+            data: { searchText: text },
+          });
+        }),
+      );
+    }
+  }
+
+  return prisma.article.findMany({
     where: {
       status: "PUBLISHED",
       slug: { not: null },
       firstPublishedAt: { not: null },
       ...(tagId ? { tags: { some: { id: tagId } } } : {}),
+      ...(normalizedQuery
+        ? { searchText: { contains: normalizedQuery, mode: "insensitive" } }
+        : {}),
     },
     orderBy: [{ firstPublishedAt: "desc" }, { id: "desc" }],
-    take: limit + 1,
+    take: safeLimit + 1,
     include: { tags: true },
   });
 }
