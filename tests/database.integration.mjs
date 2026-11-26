@@ -141,6 +141,64 @@ test("临时数据库可以迁移、重复 seed、备份并恢复全部作品", 
   assert.deepEqual(projects.map((project) => project.slug), [
     "open-source-tool", "personal-website", "side-project",
   ]);
+  assert.equal(await prisma.article.count(), 0, "seed 不发布虚构的文章内容");
+  const incompleteArticle = await prisma.article.create({ data: { title: "未完成的草稿" } });
+  assert.equal(incompleteArticle.status, "DRAFT");
+  assert.equal(incompleteArticle.slug, null);
+  assert.equal(incompleteArticle.firstPublishedAt, null);
+
+  await prisma.article.create({
+    data: {
+      slug: "published-article",
+      title: "已发布的文章",
+      excerpt: "文章摘要。",
+      bodyLanguage: "zh",
+      body: "## 主要内容\n\n正文中的可见内容。",
+      coverImageKey: "articles/test-cover.webp",
+      status: "PUBLISHED",
+      firstPublishedAt: new Date("2026-11-20T00:00:00.000Z"),
+      tags: { create: [{ name: "AI" }] },
+    },
+  });
+  await prisma.article.create({
+    data: { slug: "withdrawn-article", title: "已撤下的文章", status: "WITHDRAWN" },
+  });
+  await prisma.article.create({
+    data: { slug: "draft-article", title: "未发布的文章", status: "DRAFT" },
+  });
+  const ownerId = `owner-${randomUUID()}`;
+  const ownerSessionToken = randomUUID();
+  const authSecret = "temporary-integration-secret-with-over-32-characters";
+  await prisma.user.create({
+    data: {
+      id: ownerId,
+      name: "隔离测试站长",
+      email: "owner@example.test",
+      emailVerified: true,
+      sessions: {
+        create: {
+          id: `session-${randomUUID()}`,
+          token: ownerSessionToken,
+          expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+        },
+      },
+    },
+  });
+  const httpTestEnv = { ...options.env };
+  delete httpTestEnv.NODE_TEST_CONTEXT;
+  httpTestEnv.TEST_OWNER_SESSION_TOKEN = ownerSessionToken;
+  httpTestEnv.TEST_AUTH_SECRET = authSecret;
+  httpTestEnv.TEST_ADMIN_EMAILS = "owner@example.test";
+  httpTestEnv.TEST_ARTICLE_ACTION_RESULT = join(directory, "article-action.json");
+  execFileSync("node", ["--test", join(root, "tests", "articles.http.integration.mjs")], {
+    ...options,
+    env: httpTestEnv,
+    timeout: 120_000,
+  });
+  const actionResult = JSON.parse(readFileSync(httpTestEnv.TEST_ARTICLE_ACTION_RESULT, "utf8"));
+  const actionArticle = await prisma.article.findUnique({ where: { id: actionResult.articleId } });
+  assert.equal(actionArticle?.slug, actionResult.slug);
+  assert.equal(actionArticle?.status, "PUBLISHED", "Server Action 应完成撤下后的再次发布");
   await assert.rejects(prisma.$queryRaw`SELECT pg_sleep(10)`, /timeout|timed out/i);
   assert.equal((await prisma.project.count()), 3);
 

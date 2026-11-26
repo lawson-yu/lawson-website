@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { hasLocale, NextIntlClientProvider } from "next-intl";
 import { getMessages } from "next-intl/server";
 import { notFound } from "next/navigation";
-import type { ReactNode } from "react";
+import { Suspense, type ReactNode } from "react";
 import { PublicFooter } from "@/components/public-site/public-footer";
 import { PublicNavigation } from "@/components/public-site/public-navigation";
 import { DesktopSmoothScroll } from "@/components/public-site/desktop-smooth-scroll";
@@ -36,9 +36,13 @@ export default async function LocaleLayout({
       <body>
         <NextIntlClientProvider messages={messages}>
           <DesktopSmoothScroll>
-            <PublicNavigation />
+            <Suspense fallback={null}>
+              <PublicNavigation />
+            </Suspense>
             <div className="public-content">{children}</div>
-            <PublicFooter />
+            <Suspense fallback={null}>
+              <PublicFooter />
+            </Suspense>
           </DesktopSmoothScroll>
         </NextIntlClientProvider>
       </body>
