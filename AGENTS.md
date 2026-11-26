@@ -27,3 +27,13 @@
 - `@react-three/fiber` 的 peer 是 `react >=19 <19.4`，升 React 前先确认 fiber 跟上。
 - 界面文案走 `next-intl`；内容不翻译，保留正文语言（ADR 0001、0006）。
 - 新增页面时按 `README.md` 的目录约定决定组件落位。
+
+<!-- BEGIN:nextjs-agent-rules -->
+
+## This is NOT the Next.js you know
+
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
+<!-- END:nextjs-agent-rules -->

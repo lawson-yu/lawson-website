@@ -17,9 +17,14 @@ export function ArticleEditor({ article }: { article?: Article }) {
   function confirmAction(event: FormEvent<HTMLFormElement>) {
     const submitter = (event.nativeEvent as SubmitEvent).submitter;
     if (!(submitter instanceof HTMLButtonElement)) return;
-    if (!submitter.dataset.confirm) return;
 
-    if (!window.confirm(submitter.dataset.confirm)) event.preventDefault();
+    const slug = event.currentTarget.elements.namedItem("slug");
+    const confirmation = submitter.value === "publish" && !slugIsFixed && slug instanceof HTMLInputElement
+      ? `确认首次发布到 /articles/${slug.value.trim() || "…"} 吗？`
+      : submitter.dataset.confirm;
+    if (!confirmation) return;
+
+    if (!window.confirm(confirmation)) event.preventDefault();
   }
 
   return (

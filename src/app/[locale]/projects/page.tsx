@@ -1,3 +1,4 @@
+import { connection } from "next/server";
 import type { Metadata } from "next";
 import { getTranslations } from "next-intl/server";
 import { getPublishedProjects } from "@/server/projects";
@@ -11,6 +12,7 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function ProjectsPage({ params }: Props) {
+  await connection();
   const { locale } = await params;
   const t = await getTranslations("Projects");
   const projects = await getPublishedProjects();

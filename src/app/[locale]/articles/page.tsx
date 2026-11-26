@@ -1,3 +1,4 @@
+import { connection } from "next/server";
 import type { Metadata } from "next";
 import { getTranslations } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
@@ -9,6 +10,7 @@ type ArticlesPageProps = {
 };
 
 export async function generateMetadata({ params }: ArticlesPageProps): Promise<Metadata> {
+  await connection();
   const { locale } = await params;
   const t = await getTranslations({ locale, namespace: "Articles" });
 
@@ -27,6 +29,7 @@ export async function generateMetadata({ params }: ArticlesPageProps): Promise<M
 }
 
 export default async function ArticlesPage({ params }: ArticlesPageProps) {
+  await connection();
   const { locale } = await params;
   const [t, articles] = await Promise.all([
     getTranslations({ locale, namespace: "Articles" }),

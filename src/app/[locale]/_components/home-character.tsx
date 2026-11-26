@@ -129,12 +129,12 @@ function CloudScene({ onFirstFrame, onError }: { onFirstFrame(): void; onError()
       let x = desktop ? 0.42 * focus * (1 - recenter) : 0;
       let yaw = desktop ? -0.5 * focus * (1 - recenter) : 0;
       let pitch = desktop ? 0.18 * focus * (1 - recenter) : 0;
-      if (projectsTop !== null && transitionTop !== null) {
+      if (projectsTop !== null && transitionTop !== null && project > 0) {
         x = desktop ? 0.42 * project : 0;
         yaw = desktop ? -0.35 * project : 0;
         pitch = desktop ? 0.08 * project : 0;
       }
-      if (processTop !== null) {
+      if (processTop !== null && process > 0) {
         x = desktop ? 0.42 + 0.18 * process : 0;
         yaw = desktop ? -0.35 : 0;
         pitch = desktop ? 0.08 : 0;
