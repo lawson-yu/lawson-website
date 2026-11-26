@@ -144,6 +144,20 @@ export async function getPublishedArticle(slug: string) {
   });
 }
 
+export async function isPublishedArticleSlug(slug: string) {
+  const article = await getPrisma().article.findFirst({
+    where: {
+      slug,
+      status: "PUBLISHED",
+      firstPublishedAt: { not: null },
+      bodyLanguage: { not: "" },
+    },
+    select: { id: true },
+  });
+
+  return Boolean(article);
+}
+
 export async function getAdminArticles() {
   "use cache";
   cacheTag("articles");

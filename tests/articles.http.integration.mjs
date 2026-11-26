@@ -86,15 +86,18 @@ async function reservePort() {
 before(async () => {
   const port = await reservePort();
   origin = `http://127.0.0.1:${port}`;
+  const standalone = process.env.TEST_NEXT_COMMAND === "standalone";
   const nextCommand = process.env.TEST_NEXT_COMMAND === "start" ? "start" : "dev";
   server = spawn(
-    "pnpm",
-    ["exec", "next", nextCommand, "--hostname", "127.0.0.1", "--port", String(port)],
+    standalone ? process.execPath : "pnpm",
+    standalone ? ["server.js"] : ["exec", "next", nextCommand, "--hostname", "127.0.0.1", "--port", String(port)],
     {
-      cwd: projectRoot,
+      cwd: standalone ? new URL(".next/standalone/", projectRoot) : projectRoot,
       stdio: ["ignore", "pipe", "pipe"],
       env: {
         ...process.env,
+        HOSTNAME: "127.0.0.1",
+        PORT: String(port),
         BETTER_AUTH_URL: process.env.TEST_AUTH_SECRET ? origin : "",
         BETTER_AUTH_SECRET: process.env.TEST_AUTH_SECRET ?? "",
         GOOGLE_CLIENT_ID: process.env.TEST_AUTH_SECRET ? "test-client-id" : "",
@@ -293,10 +296,20 @@ test("站长可以管理文章，并通过 Server Action 完成发布生命周�
 
   const withdrawnResponse = await submitArticleForm(publishedPath, publishedEditor, "withdraw");
   assert.equal(redirectPath(withdrawnResponse), publishedPath);
-  const withdrawnPublicResponse = await fetch(`${origin}/zh/articles/${slug}`);
-  assert.equal(withdrawnPublicResponse.status, 404);
-  const withdrawnListResponse = await fetch(`${origin}/zh/articles`);
-  assert.doesNotMatch(await withdrawnListResponse.text(), /工单四十测试文章/);
+  for (const locale of ["zh", "en"]) {
+    for (const method of ["GET", "HEAD"]) {
+      const response = await fetch(`${origin}/${locale}/articles/${slug}`, { method });
+      const body = method === "GET" ? await response.text() : "";
+      assert.equal(response.status, 404, `${method} ${locale}/articles/${slug} 应返回 404；收到 ${response.status}\n${serverOutput.slice(-4_000)}`);
+      if (method === "GET") {
+        assert.match(body, locale === "zh" ? /文章不存在/ : /Article not found/);
+        assert.doesNotMatch(body, /工单四十测试文章|发布正文/);
+      }
+    }
+    const withdrawnListResponse = await fetch(`${origin}/${locale}/articles`);
+    assert.equal(withdrawnListResponse.status, 200);
+    assert.doesNotMatch(await withdrawnListResponse.text(), /工单四十测试文章/);
+  }
 
   const withdrawnEditorResponse = await fetch(`${origin}${publishedPath}`, { headers });
   const withdrawnEditor = await withdrawnEditorResponse.text();

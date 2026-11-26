@@ -67,6 +67,21 @@ export async function getPublishedProject(slug: string) {
   });
 }
 
+export async function isPublishedProjectSlug(slug: string) {
+  const project = await getPrisma().project.findFirst({
+    where: {
+      slug,
+      status: "PUBLISHED",
+      cardTarget: "INTERNAL",
+      body: { not: "" },
+      contentLanguage: { not: "" },
+    },
+    select: { id: true },
+  });
+
+  return Boolean(project);
+}
+
 export async function getAdminProjects() {
   "use cache";
 
