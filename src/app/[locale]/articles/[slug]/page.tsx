@@ -9,9 +9,11 @@ import { resolveMediaUrl } from "@/lib/media-url";
 import { buildDetailMetadata } from "@/lib/seo";
 import { getPublishedArticle } from "@/server/articles";
 import { ArticleMarkdown, getArticleHeadings, type ArticleHeading } from "./_components/article-markdown";
+import "../articles.css";
 
 type ArticlePageProps = {
   params: Promise<{ locale: string; slug: string }>;
+  searchParams: Promise<{ returnTo?: string }>;
 };
 
 type PublishedArticle = NonNullable<Awaited<ReturnType<typeof getPublishedArticle>>> & {
@@ -42,6 +44,27 @@ export async function generateMetadata({ params }: ArticlePageProps): Promise<Me
     coverImageKey: article.coverImageKey,
     publishedTime: article.firstPublishedAt,
   });
+}
+
+function articleReturnHref(returnTo: string | undefined, slug: string) {
+  if (!returnTo) return "/articles";
+
+  try {
+    const destination = new URL(returnTo, "https://lawson.invalid");
+    if (destination.origin !== "https://lawson.invalid" || destination.pathname !== "/articles") {
+      return "/articles";
+    }
+
+    const query = new URLSearchParams();
+    for (const key of ["q", "tag", "limit"]) {
+      const value = destination.searchParams.get(key);
+      if (value) query.set(key, value);
+    }
+    const search = query.toString();
+    return `/articles${search ? `?${search}` : ""}#article-${encodeURIComponent(slug)}`;
+  } catch {
+    return "/articles";
+  }
 }
 
 function formatDate(date: Date, locale: string) {
@@ -92,17 +115,18 @@ function TableOfContents({
   );
 }
 
-export default function ArticlePage({ params }: ArticlePageProps) {
+export default function ArticlePage({ params, searchParams }: ArticlePageProps) {
   return (
     <Suspense fallback={<main className="article-reading" aria-busy="true" />}>
-      <ArticlePageContent params={params} />
+      <ArticlePageContent params={params} searchParams={searchParams} />
     </Suspense>
   );
 }
 
-async function ArticlePageContent({ params }: ArticlePageProps) {
+async function ArticlePageContent({ params, searchParams }: ArticlePageProps) {
   await connection();
-  const { locale, slug } = await params;
+  const [{ locale, slug }, { returnTo }] = await Promise.all([params, searchParams]);
+  const returnHref = articleReturnHref(returnTo, slug);
   const [t, article] = await Promise.all([
     getTranslations({ locale, namespace: "Articles" }),
     readArticle(slug),
@@ -120,7 +144,7 @@ async function ArticlePageContent({ params }: ArticlePageProps) {
       <article lang={bodyLanguage}>
         <header className="article-reading__hero">
           <div className="article-reading__opening">
-            <Link className="article-reading__back" href="/articles">
+            <Link className="article-reading__back" href={returnHref}>
               <ArrowLeft aria-hidden="true" size={17} />
               {t("back")}
             </Link>
@@ -169,7 +193,7 @@ async function ArticlePageContent({ params }: ArticlePageProps) {
             <p className="article-reading__lede">{article.excerpt}</p>
             <ArticleMarkdown markdown={article.body} headings={headings} />
             <footer className="article-reading__end">
-              <Link href="/articles">
+              <Link href={returnHref}>
                 {t("continue")}
                 <ArrowUpRight aria-hidden="true" size={17} />
               </Link>

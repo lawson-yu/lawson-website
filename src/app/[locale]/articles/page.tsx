@@ -14,6 +14,7 @@ import { DEFAULT_CARD_COVER_PATH } from "@/lib/media-url";
 import { buildListMetadata } from "@/lib/seo";
 import { getArticleImageUrl, getPublishedArticles, getPublishedTags } from "@/server/articles";
 import { LoadMoreArticles } from "./_components/load-more-articles";
+import { ArticleCardLink, ArticleReturnFocus } from "./_components/article-return-focus";
 import "./articles.css";
 
 type ArticlesPageProps = {
@@ -62,8 +63,13 @@ async function ArticlesPageContent({ params, searchParams }: ArticlesPageProps) 
   const limit = invalidTag ? ARTICLE_BATCH_SIZE : clampArticleLimit(requestedLimit);
   const result = await getPublishedArticles(selectedTag?.id, limit, query);
   const hasMore = result.length > limit && limit < MAX_ARTICLE_LIMIT;
-  const articles = result.slice(0, limit);
+  type ArticleWithSlug = (typeof result)[number] & { slug: string };
+  const articles = result.slice(0, limit).filter(
+    (article): article is ArticleWithSlug => article.slug !== null,
+  );
+  const articleSlugs = articles.map(({ slug }) => slug);
   const hasActiveFilter = Boolean(query || selectedTag);
+  const returnTo = buildArticlesHref({ q: query, tag: selectedTag?.id, limit });
 
   return (
     <main className="articles-index">
@@ -75,6 +81,7 @@ async function ArticlesPageContent({ params, searchParams }: ArticlesPageProps) 
       </header>
 
       <section className="articles-index__section" aria-labelledby="articles-index-title">
+        <ArticleReturnFocus articleSlugs={articleSlugs} />
         <div className="articles-index__section-heading">
           <h2 id="articles-index-title">{t("latest")}</h2>
           <span>{articles.length} {t("count")}</span>
@@ -139,14 +146,19 @@ async function ArticlesPageContent({ params, searchParams }: ArticlesPageProps) 
             {articles.map((article) => (
               <li key={article.id}>
                 <article className="article-card">
-                  <Link className="article-card__image" href={`/articles/${article.slug}`} aria-label={article.title}>
+                  <ArticleCardLink
+                    className="article-card__image"
+                    href={`/articles/${article.slug}?returnTo=${encodeURIComponent(returnTo)}`}
+                    slug={article.slug}
+                    ariaLabel={article.title}
+                  >
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={getArticleImageUrl(article.coverImageKey) || DEFAULT_CARD_COVER_PATH}
                       alt=""
                       loading="lazy"
                     />
-                  </Link>
+                  </ArticleCardLink>
                   <div className="article-card__body">
                     <div className="article-card__meta">
                       <time dateTime={(article.firstPublishedAt ?? article.createdAt).toISOString()}>
@@ -167,9 +179,14 @@ async function ArticlesPageContent({ params, searchParams }: ArticlesPageProps) 
                         </span>
                       )}
                     </div>
-                    <Link className="article-card__title" href={`/articles/${article.slug}`}>
+                    <ArticleCardLink
+                      className="article-card__title"
+                      href={`/articles/${article.slug}?returnTo=${encodeURIComponent(returnTo)}`}
+                      slug={article.slug}
+                      focusTarget
+                    >
                       {article.title}
-                    </Link>
+                    </ArticleCardLink>
                     <p className="article-card__excerpt">{article.excerpt}</p>
                   </div>
                 </article>
