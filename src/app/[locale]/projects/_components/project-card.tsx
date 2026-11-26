@@ -1,5 +1,6 @@
 import { ArrowDown, ArrowRight, ArrowUpRight } from "lucide-react";
 import { Link } from "@/i18n/navigation";
+import { DEFAULT_CARD_COVER_PATH, resolveMediaUrl } from "@/lib/media-url";
 
 type ProjectCardData = {
   slug: string;
@@ -24,19 +25,15 @@ export function ProjectCard({
 }) {
   const publishedAt = project.firstPublishedAt ?? project.createdAt;
   const date = new Intl.DateTimeFormat(locale, { dateStyle: "medium" }).format(publishedAt);
-  const cover = project.coverImage
-    ? /^https?:\/\//i.test(project.coverImage)
-      ? project.coverImage
-      : `/${project.coverImage.replace(/^\/+/, "")}`
-    : null;
+  const cover = resolveMediaUrl(project.coverImage) ?? DEFAULT_CARD_COVER_PATH;
   const card = (
     <>
       <span
         className="works-card__cover"
         aria-hidden="true"
-        style={cover ? { backgroundImage: `url("${cover}")` } : undefined}
+        style={{ backgroundImage: `url("${cover}")` }}
       >
-        {!cover && <span className="works-card__cover-title">{project.name}</span>}
+        {!project.coverImage && <span className="works-card__cover-title">{project.name}</span>}
       </span>
       <span className="works-card__info">
         <span className="works-card__meta">

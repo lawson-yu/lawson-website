@@ -5,6 +5,8 @@ import { getTranslations } from "next-intl/server";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { Link } from "@/i18n/navigation";
+import { resolveMediaUrl } from "@/lib/media-url";
+import { buildDetailMetadata } from "@/lib/seo";
 import { getPublishedProject } from "@/server/projects";
 import { ProjectMarkdown } from "./_components/project-markdown";
 
@@ -14,17 +16,19 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   await connection();
   const { slug } = await params;
   const project = await getPublishedProject(slug);
-  if (!project) return {};
+  if (!project || !project.body || !project.contentLanguage) {
+    return { robots: { index: false, follow: false } };
+  }
 
-  return {
+  return buildDetailMetadata({
+    section: "projects",
+    slug,
     title: project.name,
     description: project.description,
-    openGraph: {
-      title: project.name,
-      description: project.description,
-      type: "article",
-    },
-  };
+    bodyLanguage: project.contentLanguage,
+    coverImageKey: project.coverImage,
+    publishedTime: project.firstPublishedAt ?? project.createdAt,
+  });
 }
 
 export default function ProjectDetailPage({ params }: Props) {
@@ -44,15 +48,12 @@ async function ProjectDetailContent({ params }: Props) {
   const t = await getTranslations("Projects");
   const publishedAt = project.firstPublishedAt ?? project.createdAt;
   const date = new Intl.DateTimeFormat(locale, { dateStyle: "medium" }).format(publishedAt);
-  const cover = project.coverImage
-    ? /^https?:\/\//i.test(project.coverImage)
-      ? project.coverImage
-      : `/${project.coverImage.replace(/^\/+/, "")}`
-    : null;
+  const cover = resolveMediaUrl(project.coverImage);
+  const bodyLanguage = project.contentLanguage === "en" ? "en" : "zh";
 
   return (
     <main className="project-detail-page">
-      <article className="project-detail">
+      <article className="project-detail" lang={bodyLanguage}>
         <Link className="project-detail__back" href="/projects">
           <ArrowLeft aria-hidden="true" size={17} />
           {t("backToWorks")}
@@ -71,8 +72,13 @@ async function ProjectDetailContent({ params }: Props) {
             </a>
           )}
         </header>
-        {cover && <div className="project-detail__cover" role="img" aria-label={project.name} style={{ backgroundImage: `url("${cover}")` }} />}
-        <div className="project-detail__body" lang={project.contentLanguage}>
+        {cover && (
+          <figure className="project-detail__cover">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={cover} alt={project.name} />
+          </figure>
+        )}
+        <div className="project-detail__body" lang={bodyLanguage}>
           <ProjectMarkdown source={project.body} />
         </div>
         <footer className="project-detail__footer">

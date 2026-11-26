@@ -1,9 +1,10 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useRef } from "react";
 import type { FormEvent } from "react";
 import Link from "next/link";
 import type { Article, Tag } from "@/generated/prisma/client";
+import { CoverImageField, MarkdownImageButton } from "@/components/admin/media-uploader";
 import { saveArticle, type ArticleActionState } from "@/server/article-actions";
 
 const initialState: ArticleActionState = { revision: 0, values: {} };
@@ -13,6 +14,7 @@ export function ArticleEditor({ article, tags }: {
   tags: Array<Pick<Tag, "id" | "name">>;
 }) {
   const [state, action, pending] = useActionState(saveArticle, initialState);
+  const bodyRef = useRef<HTMLTextAreaElement>(null);
   const values = state.values;
   const selectedTagIds = values.tagIds ?? article?.tags.map(({ id }) => id) ?? [];
   const isPublished = article?.status === "PUBLISHED";
@@ -125,8 +127,21 @@ export function ArticleEditor({ article, tags }: {
       </div>
 
       <div className="article-editor__field">
-        <label htmlFor="article-body">正文 Markdown</label>
+        <CoverImageField
+          id="article-cover"
+          name="coverImageKey"
+          label="封面图片"
+          initialValue={values.coverImageKey ?? article?.coverImageKey ?? ""}
+        />
+      </div>
+
+      <div className="article-editor__field">
+        <div className="article-editor__label-row">
+          <label htmlFor="article-body">正文 Markdown</label>
+          <MarkdownImageButton textareaRef={bodyRef} />
+        </div>
         <textarea
+          ref={bodyRef}
           id="article-body"
           name="body"
           className="article-editor__body"

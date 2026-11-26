@@ -1,14 +1,22 @@
 import { connection } from "next/server";
 import type { Metadata } from "next";
 import { getTranslations } from "next-intl/server";
+import { buildListMetadata } from "@/lib/seo";
 import { getPublishedProjects } from "@/server/projects";
 import { ProjectCard, WorksBrowseLink } from "./_components/project-card";
 
 type Props = { params: Promise<{ locale: string }> };
 
-export async function generateMetadata(): Promise<Metadata> {
-  const t = await getTranslations("Projects");
-  return { title: t("title"), description: t("description") };
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const { locale } = await params;
+  const t = await getTranslations({ locale, namespace: "Projects" });
+  return buildListMetadata({
+    locale,
+    section: "projects",
+    title: `${t("title")} | LAWSON`,
+    description: t("description"),
+    hasFilterOrLoadState: false,
+  });
 }
 
 export default async function ProjectsPage({ params }: Props) {

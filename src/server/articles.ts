@@ -7,6 +7,7 @@ import {
   buildArticleSearchText,
   normalizeSearchQuery,
 } from "@/lib/article-search";
+import { resolveMediaUrl } from "@/lib/media-url";
 import { getPrisma } from "./db";
 
 export async function getPublishedArticles(
@@ -133,9 +134,6 @@ export async function isPublishedArticleSlug(slug: string) {
   return Boolean(article);
 }
 
-export function getArticleImageUrl(key: string) {
-  const baseUrl = process.env.MEDIA_BASE_URL;
-  if (baseUrl) return new URL(key, baseUrl).toString();
-
-  return `/uploads/${key.replace(/^\/+/, "")}`;
+export function getArticleImageUrl(key: string | null | undefined) {
+  return resolveMediaUrl(key) ?? "";
 }

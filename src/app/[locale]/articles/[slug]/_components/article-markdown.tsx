@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { getArticleImageUrl } from "@/server/articles";
+import { resolveMediaUrl } from "@/lib/media-url";
 
 export type ArticleHeading = {
   depth: 2 | 3;
@@ -77,11 +77,7 @@ export function ArticleMarkdown({
         h3: renderHeading("h3"),
         img: ({ src, alt }) => {
           if (typeof src !== "string") return null;
-          const imageSrc = src?.startsWith("/") || /^https?:\/\//i.test(src ?? "")
-            ? src
-            : src
-              ? getArticleImageUrl(src)
-              : undefined;
+          const imageSrc = resolveMediaUrl(src);
 
           // eslint-disable-next-line @next/next/no-img-element
           return imageSrc ? <img src={imageSrc} alt={alt ?? ""} loading="lazy" /> : null;

@@ -3,6 +3,7 @@
 import { updateTag } from "next/cache";
 import { redirect } from "next/navigation";
 import { buildArticleSearchText } from "@/lib/article-search";
+import { normalizeSubmittedMediaKey } from "@/lib/media-url";
 import { getPrisma } from "./db";
 import { requireSiteOwner } from "./auth";
 
@@ -16,6 +17,7 @@ export type ArticleActionState = {
     bodyLanguage?: string;
     body?: string;
     slug?: string;
+    coverImageKey?: string;
     tagIds?: string[];
   };
 };
@@ -54,6 +56,7 @@ export async function saveArticle(
     bodyLanguage: value(formData, "bodyLanguage"),
     body: value(formData, "body"),
     slug: value(formData, "slug"),
+    coverImageKey: value(formData, "coverImageKey"),
     tagIds: [...new Set(formData.getAll("tagIds")
       .filter((item): item is string => typeof item === "string")
       .map((id) => id.trim())
@@ -110,11 +113,21 @@ export async function saveArticle(
     };
   }
 
+  const normalizedCoverImageKey = normalizeSubmittedMediaKey(values.coverImageKey);
+  if (values.coverImageKey && !normalizedCoverImageKey) {
+    return {
+      revision: previousState.revision + 1,
+      message: "封面路径格式无效，请通过上传按钮上传或填写合法的相对媒体路径。",
+      values,
+    };
+  }
+
   const data = {
     title: values.title,
     excerpt: values.excerpt,
     bodyLanguage: values.bodyLanguage || null,
     body: values.body,
+    coverImageKey: normalizedCoverImageKey,
     searchText: buildArticleSearchText(values),
     ...(intent === "publish"
       ? {
