@@ -1205,15 +1205,23 @@ test("首页文案和入口随滚动淡出，手机页面仍可正常滚动", { 
       { timeout: 15_000 },
     );
     const touch = await mobilePage.context().newCDPSession(mobilePage);
-    const scrollGesture = {
-      x: 8,
-      y: 800,
-      yDistance: -320,
-      speed: 700,
-      gestureSourceType: "touch",
-    };
-    // 从首屏左下方的内容区外发起触摸，避免手势被 Hero 文案或入口区域命中。
-    await touch.send("Input.synthesizeScrollGesture", scrollGesture);
+    await mobilePage.evaluate(() => {
+      window.__touchEventCounts = { touchstart: 0, touchmove: 0, touchend: 0 };
+      for (const name of Object.keys(window.__touchEventCounts)) {
+        window.addEventListener(name, () => window.__touchEventCounts[name] += 1, { passive: true });
+      }
+    });
+    const touchPoints = (y) => [{ id: 1, x: 24, y, radiusX: 1, radiusY: 1, force: 1 }];
+    // 注入真实 touchStart/touchMove/touchEnd，并由浏览器默认行为滚动页面。
+    await touch.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: touchPoints(760) });
+    for (const y of [680, 600, 520, 440]) {
+      await touch.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: touchPoints(y) });
+    }
+    await touch.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+    const touchEvents = await mobilePage.evaluate(() => window.__touchEventCounts);
+    assert.ok(touchEvents.touchstart > 0, "触摸滚动应分发 touchstart");
+    assert.ok(touchEvents.touchmove > 0, "触摸滚动应分发 touchmove");
+    assert.ok(touchEvents.touchend > 0, "触摸滚动应分发 touchend");
     await mobilePage.waitForFunction(() => scrollY >= 150, null, { timeout: 15_000 });
     assert.ok(Number(await mobilePage.locator(".home-hero__content").evaluate((element) => getComputedStyle(element).opacity)) < 1);
     assert.ok(await mobilePage.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
