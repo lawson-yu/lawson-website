@@ -1,0 +1,8 @@
+[Unit]
+Description=清理 lawson-website 超过 24 个月的访客访问记录
+
+[Service]
+Type=oneshot
+User=ubuntu
+WorkingDirectory=/opt/lawson-website
+ExecStart=/opt/lawson-website/scripts/cleanup-visitor-records.sh

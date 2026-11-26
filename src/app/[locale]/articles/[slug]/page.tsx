@@ -5,6 +5,7 @@ import { getTranslations } from "next-intl/server";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { Link } from "@/i18n/navigation";
+import { VisitTracker } from "@/components/public-site/visit-tracker";
 import { resolveMediaUrl } from "@/lib/media-url";
 import { buildDetailMetadata } from "@/lib/seo";
 import { getPublishedArticle } from "@/server/articles";
@@ -117,6 +118,7 @@ async function ArticlePageContent({ params }: ArticlePageProps) {
 
   return (
     <main className="article-reading">
+      <VisitTracker kind="article" targetId={article.id} />
       <article lang={bodyLanguage}>
         <header className="article-reading__hero">
           <div className="article-reading__opening">

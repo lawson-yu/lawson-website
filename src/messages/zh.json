@@ -65,6 +65,22 @@
   "Footer": {
     "navigation": "站内导航",
     "socialNavigation": "社交链接",
-    "backToTop": "回到顶部"
+    "backToTop": "回到顶部",
+    "privacy": "隐私说明"
+  },
+  "Privacy": {
+    "title": "隐私说明",
+    "description": "了解登录后记录的信息、保留期限和删除方式。",
+    "backHome": "返回首页",
+    "scopeTitle": "记录范围",
+    "scopeAnonymous": "匿名浏览不会创建访客记录。",
+    "scopeAccount": "使用 Google 登录后，我们会保存你的邮箱、显示名、首次登录和最近登录时间，以及用于验证身份的 Google 账号关联和会话数据。",
+    "scopeVisits": "登录状态下实际打开文章或站内项目详情时，我们会记录首次访问、最近访问时间和访问次数。",
+    "retentionTitle": "保留期限",
+    "retentionBody": "访问记录自最近一次访问起保留 24 个月，之后自动清理。账号资料会保留，直到你提出删除请求。会话有效期为 7 天，退出登录时会吊销。",
+    "deletionTitle": "删除请求",
+    "deletionBody": "你可以随时申请删除访客账号，以及关联的登录和访问记录。",
+    "deletionContactPrefix": "请联系：",
+    "deletionContactFallback": "请通过网站公开的联系方式申请删除。"
   }
 }

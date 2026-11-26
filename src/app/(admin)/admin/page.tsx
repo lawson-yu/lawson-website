@@ -37,6 +37,7 @@ async function AdminContent() {
         <p>维护首页介绍、主要联系入口和社交链接。</p>
         <Link className="admin-page__link" href="/admin/articles">管理文章</Link>
         <Link className="admin-page__link" href="/admin/projects">作品管理</Link>
+        <Link className="admin-page__link" href="/admin/visitors">访客记录</Link>
         <SiteSettingsForm initialValues={initialValues} />
       </section>
     </main>
