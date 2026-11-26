@@ -347,6 +347,102 @@ test("站点设置在中英文首页共用原文并按序展示", async () => {
   }
 });
 
+test("首页滚动提示保留英文且不响应点击或进入焦点顺序", async () => {
+  const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+  const page = await context.newPage();
+
+  try {
+    await page.goto(`${origin}/zh`);
+    const prompt = page.locator(".home-hero__explore");
+    assert.equal((await prompt.locator(".home-hero__explore-label").innerText()).trim(), "Explore Below ↓");
+    assert.equal((await prompt.locator(".home-hero__explore-description").innerText()).trim(), "向下浏览精选文章");
+    assert.equal(await prompt.evaluate((element) => element.tagName), "P");
+    assert.equal(await prompt.getAttribute("aria-hidden"), "true");
+    assert.equal(await prompt.getAttribute("tabindex"), null);
+    assert.equal(await prompt.getAttribute("data-scroll-target"), "#featured-articles");
+    assert.equal(await prompt.locator("a, button, [tabindex]").count(), 0);
+
+    await page.goto(`${origin}/en`);
+    assert.equal(
+      (await page.locator(".home-hero__explore-description").innerText()).trim(),
+      "Scroll to explore featured articles",
+    );
+  } finally {
+    await context.close();
+  }
+});
+
+test("首页文案和入口随滚动淡出，手机页面仍可正常滚动", async () => {
+  const desktop = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+  const desktopPage = await desktop.newPage();
+  const mobile = await browser.newContext({
+    viewport: { width: 390, height: 844 },
+    deviceScaleFactor: 2,
+    isMobile: true,
+    hasTouch: true,
+  });
+  const mobilePage = await mobile.newPage();
+
+  try {
+    await desktopPage.goto(`${origin}/zh`);
+    await desktopPage.evaluate(() => window.scrollTo({ top: innerHeight * 0.75, behavior: "instant" }));
+    await desktopPage.waitForFunction(
+      () => Number(getComputedStyle(document.querySelector(".home-hero__content")).opacity) < 0.5,
+      null,
+      { timeout: 5_000 },
+    );
+    assert.ok(Number(await desktopPage.locator(".home-hero__content").evaluate((element) => getComputedStyle(element).opacity)) < 0.5);
+
+    await mobilePage.goto(`${origin}/zh`);
+    const touch = await mobilePage.context().newCDPSession(mobilePage);
+    await touch.send("Input.synthesizeScrollGesture", {
+      x: 195,
+      y: 650,
+      yDistance: -320,
+      speed: 700,
+      gestureSourceType: "touch",
+    });
+    await mobilePage.waitForFunction(() => scrollY >= 150);
+    assert.ok(Number(await mobilePage.locator(".home-hero__content").evaluate((element) => getComputedStyle(element).opacity)) < 1);
+    assert.ok(await mobilePage.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+    assert.ok(await mobilePage.evaluate(() => scrollY > 0));
+    await touch.detach();
+  } finally {
+    await desktop.close();
+    await mobile.close();
+  }
+});
+
+test("桌面角色随指针移动并在指针离开后回到自然姿态", { timeout: 45_000 }, async () => {
+  const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+  const page = await context.newPage();
+
+  try {
+    await page.goto(`${origin}/zh`);
+    await page.waitForFunction(
+      () => document.querySelector(".home-hero__character")?.dataset.characterStage === "rendered",
+      null,
+      { timeout: 15_000 },
+    );
+    const canvas = page.locator(".home-character__canvas canvas");
+    await page.mouse.move(0, 0);
+    await page.waitForTimeout(800);
+    const natural = await canvas.screenshot();
+
+    await page.mouse.move(850, 220);
+    await page.waitForTimeout(350);
+    const following = await canvas.screenshot();
+    assert.ok(!following.equals(natural), "指针移动应改变角色绘制结果");
+
+    await page.mouse.move(0, 0);
+    await page.waitForTimeout(1_200);
+    const returned = await canvas.screenshot();
+    assert.ok(!returned.equals(following), "指针离开后角色应开始回到自然姿态");
+  } finally {
+    await context.close();
+  }
+});
+
 test("不支持的界面语言返回 HTTP 404", async () => {
   const response = await fetch(`${origin}/fr`, { redirect: "manual" });
   assert.equal(response.status, 404);
