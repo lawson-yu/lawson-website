@@ -10,11 +10,11 @@ import {
   clampArticleLimit,
   normalizeSearchQuery,
 } from "@/lib/article-search";
-import { DEFAULT_CARD_COVER_PATH } from "@/lib/media-url";
 import { buildListMetadata } from "@/lib/seo";
-import { getArticleImageUrl, getPublishedArticles, getPublishedTags } from "@/server/articles";
+import { getPublishedArticles, getPublishedTags } from "@/server/articles";
+import { ArticleCard } from "./_components/article-card";
 import { LoadMoreArticles } from "./_components/load-more-articles";
-import { ArticleCardLink, ArticleReturnFocus } from "./_components/article-return-focus";
+import { ArticleReturnFocus } from "./_components/article-return-focus";
 import "./articles.css";
 
 type ArticlesPageProps = {
@@ -145,51 +145,7 @@ async function ArticlesPageContent({ params, searchParams }: ArticlesPageProps) 
           <ul className="articles-index__grid">
             {articles.map((article) => (
               <li key={article.id}>
-                <article className="article-card">
-                  <ArticleCardLink
-                    className="article-card__image"
-                    href={`/articles/${article.slug}?returnTo=${encodeURIComponent(returnTo)}`}
-                    slug={article.slug}
-                    ariaLabel={article.title}
-                  >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={getArticleImageUrl(article.coverImageKey) || DEFAULT_CARD_COVER_PATH}
-                      alt=""
-                      loading="lazy"
-                    />
-                  </ArticleCardLink>
-                  <div className="article-card__body">
-                    <div className="article-card__meta">
-                      <time dateTime={(article.firstPublishedAt ?? article.createdAt).toISOString()}>
-                        {new Intl.DateTimeFormat(locale === "zh" ? "zh-CN" : "en-US", {
-                          year: "numeric",
-                          month: "short",
-                          day: "numeric",
-                          timeZone: "UTC",
-                        }).format(article.firstPublishedAt ?? article.createdAt)}
-                      </time>
-                      {article.tags.length > 0 && (
-                        <span className="article-card__tags">
-                          {article.tags.map((tag) => (
-                            <Link href={`/articles?tag=${encodeURIComponent(tag.id)}`} key={tag.id}>
-                              {tag.name}
-                            </Link>
-                          ))}
-                        </span>
-                      )}
-                    </div>
-                    <ArticleCardLink
-                      className="article-card__title"
-                      href={`/articles/${article.slug}?returnTo=${encodeURIComponent(returnTo)}`}
-                      slug={article.slug}
-                      focusTarget
-                    >
-                      {article.title}
-                    </ArticleCardLink>
-                    <p className="article-card__excerpt">{article.excerpt}</p>
-                  </div>
-                </article>
+                <ArticleCard article={article} locale={locale} returnTo={returnTo} />
               </li>
             ))}
           </ul>

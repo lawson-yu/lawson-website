@@ -310,6 +310,57 @@ function getProjectForm(html, predicate) {
     ]);
 }
 
+async function navigateToHome(context, path, contentReady, previousPage, waitForCharacter = true) {
+  await previousPage?.close();
+  const page = await context.newPage();
+  await page.goto(`${origin}${path}`, { waitUntil: "commit" });
+  if (waitForCharacter) {
+    await page.waitForFunction(
+      () => document.querySelectorAll("[data-home-content-slot]").length === 1 &&
+        document.querySelector(".home-hero__character")?.getAttribute("data-character-stage") === "rendered",
+      null,
+      { timeout: 15_000 },
+    );
+  }
+  if (contentReady) await page.waitForFunction(contentReady, null, { timeout: 15_000 });
+  return page;
+}
+
+async function preserveCanvasPixels(page) {
+  await page.addInitScript(() => {
+    const getContext = HTMLCanvasElement.prototype.getContext;
+    HTMLCanvasElement.prototype.getContext = function (type, attributes) {
+      return getContext.call(this, type, type === "webgl2" ? { ...attributes, preserveDrawingBuffer: true } : attributes);
+    };
+  });
+}
+
+async function readCanvasPixels(canvas) {
+  const base64 = await canvas.evaluate((element) => {
+    const gl = element.getContext("webgl2");
+    if (!gl?.getContextAttributes()?.preserveDrawingBuffer) throw new Error("WebGL2 点云画布不可保留绘制缓冲");
+    const { drawingBufferWidth: width, drawingBufferHeight: height } = gl;
+    const pixels = new Uint8Array(width * height * 4);
+    gl.readPixels(0, 0, width, height, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
+    let binary = "";
+    for (let index = 0; index < pixels.length; index += 0x8000) {
+      binary += String.fromCharCode(...pixels.subarray(index, index + 0x8000));
+    }
+    return btoa(binary);
+  });
+  return Buffer.from(base64, "base64");
+}
+
+function countChangedPixels(first, second) {
+  assert.equal(first.length, second.length, "点云像素尺寸应保持一致");
+  let changed = 0;
+  for (let index = 0; index < first.length; index += 4) {
+    if (Math.abs(first[index] - second[index]) +
+        Math.abs(first[index + 1] - second[index + 1]) +
+        Math.abs(first[index + 2] - second[index + 2]) > 60) changed++;
+  }
+  return changed * 64;
+}
 async function submitProjectAction(path, hiddenFields, values, cookie) {
   const formData = new FormData();
   for (const [name, value] of hiddenFields) formData.set(name, value);
@@ -849,6 +900,319 @@ test("首页未配置介绍、联系入口和社交链接时省略相应内容",
     assert.doesNotMatch(renderedHtml, /联系我|Contact me/);
     assert.doesNotMatch(renderedHtml, /href="mailto:/);
     assert.doesNotMatch(renderedHtml, /public-footer__links/);
+  }
+});
+
+test("站长分别管理首页精选顺序与上限，撤下内容可恢复位置并复用作品卡片入口", { timeout: 120_000 }, async () => {
+  const suffix = randomUUID().slice(0, 8);
+  const ownerId = `featured-owner-${suffix}`;
+  const token = randomUUID();
+  const articleIds = Array.from({ length: 6 }, (_, index) => `featured-${suffix}-article-${index + 1}`);
+  const projectIds = Array.from({ length: 4 }, (_, index) => `featured-${suffix}-project-${index + 1}`);
+  const articleRanks = await prisma.article.findMany({ where: { featuredRank: { not: null } }, select: { id: true, featuredRank: true } });
+  const projectRanks = await prisma.project.findMany({ where: { featuredRank: { not: null } }, select: { id: true, featuredRank: true } });
+  let context;
+
+  try {
+    await prisma.article.updateMany({ where: { featuredRank: { not: null } }, data: { featuredRank: null } });
+    await prisma.project.updateMany({ where: { featuredRank: { not: null } }, data: { featuredRank: null } });
+    await prisma.article.createMany({
+      data: articleIds.map((id, index) => ({
+        id,
+        slug: id,
+        title: `首页精选文章 ${index + 1}`,
+        excerpt: "用于验证首页精选文章顺序。",
+        bodyLanguage: "zh",
+        body: "## 正文\n\n隔离数据库中的精选文章。",
+        status: "PUBLISHED",
+        firstPublishedAt: new Date(`2026-11-${String(10 + index).padStart(2, "0")}T00:00:00Z`),
+      })),
+    });
+    await prisma.project.createMany({
+      data: projectIds.map((id, index) => {
+        const external = index === 1 || index === 3;
+        return {
+          id,
+          slug: id,
+          name: `首页精选作品 ${index + 1}`,
+          description: "用于验证首页作品顺序和卡片入口。",
+          type: "验收作品",
+          cardTarget: external ? "EXTERNAL" : "INTERNAL",
+          status: "PUBLISHED",
+          url: external ? `https://${id}.example/open` : null,
+          body: external ? null : "## 正文\n\n隔离数据库中的站内作品。",
+          contentLanguage: external ? null : "zh",
+          firstPublishedAt: new Date(`2026-11-${String(10 + index).padStart(2, "0")}T00:00:00Z`),
+        };
+      }),
+    });
+    await prisma.user.create({
+      data: {
+        id: ownerId,
+        name: "首页精选验收站长",
+        email: ownerEmail,
+        emailVerified: true,
+        sessions: {
+          create: {
+            id: `featured-session-${suffix}`,
+            token,
+            expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+          },
+        },
+      },
+    });
+
+    await stopServer();
+    await startServer(false);
+    let response = await fetch(`${origin}/zh`);
+    let html = await response.text();
+    assert.equal(response.status, 200);
+    assert.doesNotMatch(html, /id="featured-articles"|id="featured-projects"/);
+
+    await stopServer();
+    await startServer(true);
+    const cookie = sessionCookie(token);
+    async function getAction(path, predicate) {
+      const page = await fetch(`${origin}${path}`, { headers: { cookie } });
+      assert.equal(page.status, 200, `无法读取管理页 ${path}`);
+      return getProjectForm(await page.text(), predicate);
+    }
+    async function addFeatured(path, id) {
+      const form = await getAction(path, (markup) => markup.includes('class="featured-manager__add-form"'));
+      const result = await submitProjectAction(path, form, { id, intent: "add" }, cookie);
+      assert.ok(result.status < 400, `加入首页精选失败：${id}，状态 ${result.status}`);
+      await result.arrayBuffer();
+    }
+
+    await addFeatured("/admin/articles", articleIds[0]);
+    await addFeatured("/admin/articles", articleIds[1]);
+    let form = await getAction("/admin/articles", (markup) =>
+      markup.includes(`name="id" value="${articleIds[1]}"`) &&
+      markup.includes('value="up"') && markup.includes('name="intent"'),
+    );
+    response = await submitProjectAction("/admin/articles", form, { id: articleIds[1], intent: "up" }, cookie);
+    assert.ok(response.status < 400, `调整精选文章顺序失败：${response.status}`);
+    await response.arrayBuffer();
+    for (const id of articleIds.slice(2, 5)) await addFeatured("/admin/articles", id);
+
+    let adminHtml = await (await fetch(`${origin}/admin/articles`, { headers: { cookie } })).text();
+    assert.match(adminHtml, /5\s*\/\s*5/);
+    form = getProjectForm(adminHtml, (markup) => markup.includes('class="featured-manager__add-form"'));
+    response = await submitProjectAction("/admin/articles", form, { id: articleIds[5], intent: "add" }, cookie);
+    assert.ok(response.status < 400, `超限精选操作应安全忽略：${response.status}`);
+    await response.arrayBuffer();
+    assert.equal((await prisma.article.findUnique({ where: { id: articleIds[5] }, select: { featuredRank: true } })).featuredRank, null);
+
+    form = await getAction("/admin/articles", (markup) =>
+      markup.includes(`name="id" value="${articleIds[4]}"`) &&
+      markup.includes('value="remove"') && markup.includes('name="intent"'),
+    );
+    response = await submitProjectAction("/admin/articles", form, { id: articleIds[4], intent: "remove" }, cookie);
+    assert.ok(response.status < 400, `移出首页精选失败：${response.status}`);
+    await response.arrayBuffer();
+    assert.equal((await prisma.article.findUnique({ where: { id: articleIds[4] }, select: { featuredRank: true } })).featuredRank, null);
+    await addFeatured("/admin/articles", articleIds[5]);
+    assert.notEqual((await prisma.article.findUnique({ where: { id: articleIds[5] }, select: { featuredRank: true } })).featuredRank, null);
+
+    await addFeatured("/admin/projects", projectIds[0]);
+    await addFeatured("/admin/projects", projectIds[1]);
+    await addFeatured("/admin/projects", projectIds[2]);
+    form = await getAction("/admin/projects", (markup) =>
+      markup.includes(`name="id" value="${projectIds[1]}"`) &&
+      markup.includes('value="up"') && markup.includes('name="intent"'),
+    );
+    response = await submitProjectAction("/admin/projects", form, { id: projectIds[1], intent: "up" }, cookie);
+    assert.ok(response.status < 400, `调整首页作品顺序失败：${response.status}`);
+    await response.arrayBuffer();
+    adminHtml = await (await fetch(`${origin}/admin/projects`, { headers: { cookie } })).text();
+    assert.match(adminHtml, /3\s*\/\s*3/);
+    form = getProjectForm(adminHtml, (markup) => markup.includes('class="featured-manager__add-form"'));
+    response = await submitProjectAction("/admin/projects", form, { id: projectIds[3], intent: "add" }, cookie);
+    assert.ok(response.status < 400, `超限作品精选操作应安全忽略：${response.status}`);
+    await response.arrayBuffer();
+
+    context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+    let page = await navigateToHome(
+      context,
+      "/zh",
+      () => {
+        const visibleCount = (selector) =>
+          [...document.querySelectorAll(selector)].filter((element) => element.checkVisibility()).length;
+        return visibleCount("#featured-articles .home-featured__article") === 5 &&
+          visibleCount("#featured-projects .works-card") === 3;
+      },
+      undefined,
+      false,
+    );
+    const prompt = page.locator(".home-hero__explore");
+    assert.equal(await prompt.count(), 1);
+    assert.equal((await prompt.locator(".home-hero__explore-label").innerText()).trim(), "Explore Below ↓");
+    assert.equal((await prompt.locator(".home-hero__explore-description").innerText()).trim(), "向下浏览精选文章");
+    assert.equal(await prompt.evaluate((element) => element.tagName), "P");
+    assert.equal(await prompt.getAttribute("aria-hidden"), "true");
+    assert.equal(await prompt.getAttribute("tabindex"), null);
+    assert.equal(await prompt.locator("a, button, [tabindex]").count(), 0);
+    let articleCards = page.locator("#featured-articles .home-featured__article:visible");
+    assert.equal(await articleCards.count(), 5);
+    assert.deepEqual(await articleCards.locator(".article-card__title").allTextContents(), [
+      "首页精选文章 2", "首页精选文章 1", "首页精选文章 3", "首页精选文章 4", "首页精选文章 6",
+    ]);
+    assert.equal(await articleCards.locator(".article-card__title").first().getAttribute("href"), `/zh/articles/${articleIds[1]}`);
+    assert.deepEqual(
+      await page.locator(".home-featured-articles:visible, .home-particle-transition:visible, .home-featured-projects:visible")
+        .evaluateAll((sections) => sections.map((section) => section.getAttribute("data-home-motion"))),
+      ["featured-articles", "particle-transition", "home-projects"],
+    );
+
+    page = await navigateToHome(
+      context,
+      "/en",
+      () => {
+        const visible = (selector) => [...document.querySelectorAll(selector)].filter((element) => element.checkVisibility());
+        return visible("#featured-articles .article-card__title").length === 5 &&
+          visible("#featured-projects-title").some((element) => element.textContent === "Selected works");
+      },
+      page,
+      false,
+    );
+    await page.getByRole("heading", { name: "Featured articles" }).waitFor();
+    assert.equal(await page.locator("#featured-articles .article-card__title:visible").count(), 5);
+    assert.equal(await page.locator("#featured-projects-title:visible").innerText(), "Selected works");
+    page = await navigateToHome(
+      context,
+      "/zh",
+      () => [...document.querySelectorAll("#featured-projects .works-card")]
+        .filter((element) => element.checkVisibility()).length === 3,
+      page,
+      false,
+    );
+
+    let homeProjects = page.locator("#featured-projects .works-card:visible");
+    assert.equal(await homeProjects.count(), 3);
+    assert.deepEqual(await homeProjects.locator(".works-card__title").allTextContents(), [
+      "首页精选作品 2", "首页精选作品 1", "首页精选作品 3",
+    ]);
+    const internalHomeCard = homeProjects.filter({ hasText: "首页精选作品 1" });
+    const externalHomeCard = homeProjects.filter({ hasText: "首页精选作品 2" });
+    assert.equal(await internalHomeCard.locator(".works-card__link").getAttribute("href"), `/zh/projects/${projectIds[0]}`);
+    assert.equal(await externalHomeCard.locator(".works-card__link").getAttribute("href"), `https://${projectIds[1]}.example/open`);
+
+    await page.goto(`${origin}/zh/projects`);
+    const projectList = page.locator(".works-grid .works-card");
+    assert.equal(await projectList.filter({ hasText: "首页精选作品 4" }).count(), 1, "未精选作品仍保留在作品列表");
+    assert.equal(
+      await projectList.filter({ hasText: "首页精选作品 1" }).locator(".works-card__link").getAttribute("href"),
+      `/zh/projects/${projectIds[0]}`,
+    );
+    assert.equal(
+      await projectList.filter({ hasText: "首页精选作品 2" }).locator(".works-card__link").getAttribute("href"),
+      `https://${projectIds[1]}.example/open`,
+    );
+
+    let articleEditor = await (await fetch(`${origin}/admin/articles/${articleIds[1]}`, { headers: { cookie } })).text();
+    form = getProjectForm(articleEditor, (markup) => markup.includes('class="article-editor"'));
+    response = await submitProjectAction(`/admin/articles/${articleIds[1]}`, form, { intent: "withdraw" }, cookie);
+    assert.ok(response.status < 400, `撤下精选文章失败：${response.status}`);
+    await response.arrayBuffer();
+    page = await navigateToHome(
+      context,
+      "/zh",
+      () => [...document.querySelectorAll("#featured-articles .home-featured__article")]
+        .filter((element) => element.checkVisibility()).length === 4,
+      page,
+      false,
+    );
+    articleCards = page.locator("#featured-articles .home-featured__article:visible");
+    assert.deepEqual(await articleCards.locator(".article-card__title").allTextContents(), [
+      "首页精选文章 1", "首页精选文章 3", "首页精选文章 4", "首页精选文章 6",
+    ]);
+    adminHtml = await (await fetch(`${origin}/admin/articles`, { headers: { cookie } })).text();
+    assert.match(adminHtml, /5\s*\/\s*5/);
+    form = getProjectForm(adminHtml, (markup) => markup.includes('class="featured-manager__add-form"'));
+    response = await submitProjectAction("/admin/articles", form, { id: articleIds[4], intent: "add" }, cookie);
+    assert.ok(response.status < 400, `撤下期间不能占用保留精选位置：${response.status}`);
+    await response.arrayBuffer();
+    assert.equal((await prisma.article.findUnique({ where: { id: articleIds[4] }, select: { featuredRank: true } })).featuredRank, null);
+
+    articleEditor = await (await fetch(`${origin}/admin/articles/${articleIds[1]}`, { headers: { cookie } })).text();
+    form = getProjectForm(articleEditor, (markup) => markup.includes('class="article-editor"'));
+    response = await submitProjectAction(`/admin/articles/${articleIds[1]}`, form, {
+      intent: "publish",
+      title: "首页精选文章 2",
+      excerpt: "用于验证首页精选文章顺序。",
+      bodyLanguage: "zh",
+      body: "## 正文\n\n隔离数据库中的精选文章。",
+      slug: articleIds[1],
+    }, cookie);
+    assert.ok(response.status < 400, `重新发布精选文章失败：${response.status}`);
+    await response.arrayBuffer();
+    page = await navigateToHome(
+      context,
+      "/zh",
+      () => [...document.querySelectorAll("#featured-articles .article-card__title")]
+        .find((element) => element.checkVisibility())?.textContent === "首页精选文章 2",
+      page,
+      false,
+    );
+    articleCards = page.locator("#featured-articles .home-featured__article:visible");
+    assert.equal(await articleCards.locator(".article-card__title").first().textContent(), "首页精选文章 2");
+
+    adminHtml = await (await fetch(`${origin}/admin/projects`, { headers: { cookie } })).text();
+    form = getProjectForm(adminHtml, (markup) =>
+      markup.includes('class="admin-project-action"') &&
+      markup.includes(`name="id" value="${projectIds[1]}"`) &&
+      markup.includes("撤下作品"),
+    );
+    response = await submitProjectAction("/admin/projects", form, { id: projectIds[1] }, cookie);
+    assert.ok(response.status < 400, `撤下精选作品失败：${response.status}`);
+    await response.arrayBuffer();
+    page = await navigateToHome(
+      context,
+      "/zh",
+      () => [...document.querySelectorAll("#featured-projects .works-card")]
+        .filter((element) => element.checkVisibility()).length === 2,
+      page,
+      false,
+    );
+    homeProjects = page.locator("#featured-projects .works-card:visible");
+    assert.deepEqual(await homeProjects.locator(".works-card__title").allTextContents(), [
+      "首页精选作品 1", "首页精选作品 3",
+    ]);
+
+    adminHtml = await (await fetch(`${origin}/admin/projects`, { headers: { cookie } })).text();
+    form = getProjectForm(adminHtml, (markup) =>
+      markup.includes('class="admin-project-action"') &&
+      markup.includes(`name="id" value="${projectIds[1]}"`) &&
+      markup.includes("重新发布"),
+    );
+    response = await submitProjectAction("/admin/projects", form, { id: projectIds[1] }, cookie);
+    assert.ok(response.status < 400, `重新发布精选作品失败：${response.status}`);
+    await response.arrayBuffer();
+    page = await navigateToHome(
+      context,
+      "/zh",
+      () => [...document.querySelectorAll("#featured-projects .works-card__title")]
+        .find((element) => element.checkVisibility())?.textContent === "首页精选作品 2",
+      page,
+      false,
+    );
+    homeProjects = page.locator("#featured-projects .works-card:visible");
+    assert.equal(await homeProjects.locator(".works-card__title").first().textContent(), "首页精选作品 2");
+  } finally {
+    await context?.close();
+    await stopServer();
+    await prisma.user.deleteMany({ where: { id: ownerId } });
+    await prisma.article.deleteMany({ where: { id: { in: articleIds } } });
+    await prisma.project.deleteMany({ where: { id: { in: projectIds } } });
+    await prisma.article.updateMany({ where: { featuredRank: { not: null } }, data: { featuredRank: null } });
+    await prisma.project.updateMany({ where: { featuredRank: { not: null } }, data: { featuredRank: null } });
+    for (const article of articleRanks) {
+      await prisma.article.update({ where: { id: article.id }, data: { featuredRank: article.featuredRank } });
+    }
+    for (const project of projectRanks) {
+      await prisma.project.update({ where: { id: project.id }, data: { featuredRank: project.featuredRank } });
+    }
+    await startServer(false);
   }
 });
 

@@ -4,6 +4,7 @@ import { updateTag } from "next/cache";
 import { redirect } from "next/navigation";
 import { buildArticleSearchText } from "@/lib/article-search";
 import { normalizeSubmittedMediaKey } from "@/lib/media-url";
+import { getFeaturedRankUpdates, type FeaturedIntent } from "@/lib/featured-rank";
 import { getPrisma } from "./db";
 import { requireSiteOwner } from "./auth";
 
@@ -162,4 +163,49 @@ export async function saveArticle(
     }
     throw error;
   }
+}
+
+export async function updateFeaturedArticle(formData: FormData) {
+  await requireSiteOwner();
+
+  const id = value(formData, "id");
+  const rawIntent = value(formData, "intent");
+  if (!id || !["add", "remove", "up", "down"].includes(rawIntent)) return;
+
+  const changed = await getPrisma().$transaction(async (transaction) => {
+    const target = await transaction.article.findUnique({
+      where: { id },
+      select: { id: true, status: true, featuredRank: true },
+    });
+    if (!target) return false;
+
+    const featured = await transaction.article.findMany({
+      where: { status: { in: ["PUBLISHED", "WITHDRAWN"] }, featuredRank: { not: null } },
+      orderBy: [{ featuredRank: "asc" }, { id: "asc" }],
+      select: { id: true, status: true, featuredRank: true },
+    });
+    const updates = getFeaturedRankUpdates(
+      featured,
+      target,
+      rawIntent as FeaturedIntent,
+      5,
+    );
+    if (!updates) return false;
+
+    for (const item of updates.updates) {
+      await transaction.article.update({
+        where: { id: item.id },
+        data: { featuredRank: item.featuredRank },
+      });
+    }
+    if (updates.clearId) {
+      await transaction.article.update({
+        where: { id: updates.clearId },
+        data: { featuredRank: null },
+      });
+    }
+    return true;
+  }, { isolationLevel: "Serializable" });
+
+  if (changed) updateTag("articles");
 }

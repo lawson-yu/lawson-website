@@ -2,6 +2,8 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { requireSiteOwner } from "@/server/auth";
 import { getAdminArticles } from "@/server/articles";
+import { updateFeaturedArticle } from "@/server/article-actions";
+import { FeaturedManager } from "../_components/featured-manager";
 import "./articles-admin.css";
 
 export default function AdminArticlesPage() {
@@ -33,6 +35,18 @@ async function AdminArticlesContent() {
           </div>
           <Link className="article-admin__primary" href="/admin/articles/new">新建文章</Link>
         </div>
+
+        <FeaturedManager
+          kind="article"
+          limit={5}
+          action={updateFeaturedArticle}
+          items={articles.map((article) => ({
+            id: article.id,
+            title: article.title || "未命名文章",
+            status: article.status,
+            featuredRank: article.featuredRank,
+          }))}
+        />
 
         {articles.length ? (
           <ul className="article-admin__list">
