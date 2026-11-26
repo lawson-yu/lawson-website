@@ -13,6 +13,33 @@ export async function getPublishedProjects() {
   });
 }
 
+export async function getFeaturedProjects() {
+  "use cache";
+
+  cacheTag("projects");
+  return getPrisma().project.findMany({
+    where: {
+      status: "PUBLISHED",
+      firstPublishedAt: { not: null },
+      featuredRank: { not: null },
+    },
+    orderBy: [{ featuredRank: "asc" }, { id: "asc" }],
+    take: 3,
+    select: {
+      id: true,
+      slug: true,
+      name: true,
+      description: true,
+      type: true,
+      cardTarget: true,
+      url: true,
+      coverImage: true,
+      firstPublishedAt: true,
+      createdAt: true,
+    },
+  });
+}
+
 export async function getPublishedProject(slug: string) {
   "use cache";
 

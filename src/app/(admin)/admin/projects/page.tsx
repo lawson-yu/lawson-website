@@ -2,6 +2,8 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { requireSiteOwner } from "@/server/auth";
 import { getAdminProjects } from "@/server/projects";
+import { updateFeaturedProject } from "@/server/actions/projects";
+import { FeaturedManager } from "../_components/featured-manager";
 import { SignOutButton } from "@/components/public-site/public-authentication";
 import { ProjectEditor } from "./_components/project-editor";
 
@@ -37,6 +39,17 @@ async function AdminProjectsContent() {
             查看公开作品
           </Link>
         </div>
+        <FeaturedManager
+          kind="project"
+          limit={3}
+          action={updateFeaturedProject}
+          items={projects.map((project) => ({
+            id: project.id,
+            title: project.name || "未命名作品",
+            status: project.status,
+            featuredRank: project.featuredRank,
+          }))}
+        />
         <ProjectEditor />
         <section className="admin-project-list" aria-label="已有作品">
           <h2>已有作品</h2>

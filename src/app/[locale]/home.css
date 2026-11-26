@@ -188,6 +188,10 @@
   line-height: 1.8;
 }
 
+.home-featured-projects { grid-template-columns: minmax(0, 1fr); }
+.home-featured-projects .home-section__heading { max-width: none; }
+.home-featured-projects .works-card__cover-title { font-size: clamp(1.5rem, 2.5vw, 2.4rem); }
+
 .home-process__list,
 .home-services__list {
   display: grid;
