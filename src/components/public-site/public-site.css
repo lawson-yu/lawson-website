@@ -370,3 +370,22 @@ button:focus-visible {
   }
   .public-content { margin-bottom: 0; }
 }
+
+.privacy-page {
+  min-height: 100svh;
+  box-sizing: border-box;
+  padding: clamp(112px, 15vh, 160px) clamp(20px, 6vw, 80px) 72px;
+}
+
+.privacy-page__article { width: min(68ch, 100%); margin: 0 auto; }
+.privacy-page__header { display: grid; gap: 1rem; margin-bottom: 3rem; }
+.privacy-page__back { display: inline-flex; min-height: 44px; align-items: center; color: var(--site-cyan); text-underline-offset: .25em; }
+.privacy-page__header h1 { margin: .5rem 0 0; font-size: clamp(2.25rem, 5vw, 3.5rem); letter-spacing: -.035em; }
+.privacy-page__lede { margin: 0; color: var(--site-muted); line-height: 1.75; }
+.privacy-page__section { border-top: 1px solid var(--site-rule); padding: 1.5rem 0; }
+.privacy-page__section h2 { margin: 0 0 .75rem; font-size: 1.15rem; letter-spacing: -.015em; }
+.privacy-page__section p,
+.privacy-page__section ul { margin: 0; color: var(--site-muted); line-height: 1.8; }
+.privacy-page__section ul { display: grid; gap: .55rem; padding-left: 1.2rem; }
+.privacy-page__section p + p { margin-top: .75rem; }
+.privacy-page__contact a { color: var(--site-cyan); text-decoration: underline; text-underline-offset: .2em; overflow-wrap: anywhere; }

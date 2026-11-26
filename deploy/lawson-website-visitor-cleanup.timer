@@ -1,0 +1,10 @@
+[Unit]
+Description=每日清理 lawson-website 超过 24 个月的访客访问记录
+
+[Timer]
+OnCalendar=daily
+Persistent=true
+RandomizedDelaySec=600
+
+[Install]
+WantedBy=timers.target

@@ -6,6 +6,7 @@ import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import { isSiteOwner } from "@/lib/auth-policy";
 import { getPrisma } from "./db";
+import { recordVisitorLogin } from "./visitors";
 
 function hasValue(value: string | undefined) {
   return Boolean(value?.trim());
@@ -35,6 +36,15 @@ function createAuth() {
     },
     session: {
       expiresIn: 60 * 60 * 24 * 7,
+    },
+    databaseHooks: {
+      session: {
+        create: {
+          after: async (session) => {
+            await recordVisitorLogin(session.userId, session.createdAt);
+          },
+        },
+      },
     },
   });
 }

@@ -65,6 +65,22 @@
   "Footer": {
     "navigation": "站内导航",
     "socialNavigation": "Social links",
-    "backToTop": "回到顶部"
+    "backToTop": "回到顶部",
+    "privacy": "Privacy"
+  },
+  "Privacy": {
+    "title": "Privacy notice",
+    "description": "What information is recorded when you sign in, how long it is kept, and how to request deletion.",
+    "backHome": "Back to home",
+    "scopeTitle": "What we record",
+    "scopeAnonymous": "Browsing anonymously does not create visitor records.",
+    "scopeAccount": "When you sign in with Google, we store your email address, display name, first and most recent sign-in times, and the Google account and session data needed to authenticate you.",
+    "scopeVisits": "When you open an article or an on-site project while signed in, we record the first and most recent visit times and the number of visits.",
+    "retentionTitle": "Retention",
+    "retentionBody": "Visit history is kept for 24 months after your most recent visit and then removed automatically. Account details remain until you ask us to delete them. Sessions are valid for seven days and are revoked when you sign out.",
+    "deletionTitle": "Deletion requests",
+    "deletionBody": "You can request deletion of your account and its associated sign-in and visit records at any time.",
+    "deletionContactPrefix": "Contact us:",
+    "deletionContactFallback": "Please use a public contact channel on this website to request deletion."
   }
 }
