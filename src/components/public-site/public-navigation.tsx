@@ -5,6 +5,7 @@ import { useLocale, useTranslations } from "next-intl";
 import { useEffect, useRef, useState } from "react";
 import { Link, usePathname, useRouter } from "@/i18n/navigation";
 import { routing } from "@/i18n/routing";
+import { PublicAuthentication } from "./public-authentication";
 
 function LanguageSwitch({ beforeChange }: { beforeChange?: () => void }) {
   const locale = useLocale();
@@ -148,6 +149,7 @@ export function PublicNavigation() {
         inert={!visible && !menuOpen ? true : undefined}
       >
         <LanguageSwitch />
+        <PublicAuthentication />
         <button
           className="public-icon"
           type="button"
@@ -159,7 +161,6 @@ export function PublicNavigation() {
           <Menu aria-hidden="true" size={20} />
         </button>
       </header>
-      {/* 登录提示由 #39 接入此公共导航层。 */}
       {menuOpen && <MenuDialog onDismiss={() => setMenuOpen(false)} />}
     </>
   );

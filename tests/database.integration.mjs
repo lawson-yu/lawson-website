@@ -78,6 +78,30 @@ test("临时数据库可以迁移、重复 seed、备份并恢复全部作品", 
   execFileSync("pnpm", ["db:seed"], options);
   execFileSync("pnpm", ["db:seed"], options);
   prisma = getPrisma();
+  const authUserId = `auth-${randomUUID()}`;
+  const authSessionToken = randomUUID();
+  await prisma.user.create({
+    data: {
+      id: authUserId,
+      name: "隔离测试账号",
+      email: `${authUserId}@example.test`,
+      emailVerified: true,
+      sessions: {
+        create: {
+          id: `session-${randomUUID()}`,
+          token: authSessionToken,
+          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+        },
+      },
+    },
+  });
+  assert.equal(
+    (await prisma.session.findUnique({ where: { token: authSessionToken } }))?.userId,
+    authUserId,
+  );
+  await prisma.user.delete({ where: { id: authUserId } });
+  assert.equal(await prisma.session.count({ where: { token: authSessionToken } }), 0);
+
   const projects = await prisma.project.findMany({ orderBy: { slug: "asc" } });
   assert.deepEqual(projects.map((project) => project.slug), [
     "open-source-tool", "personal-website", "side-project",
