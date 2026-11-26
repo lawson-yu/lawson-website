@@ -2,6 +2,7 @@
 
 import { updateTag } from "next/cache";
 import { redirect } from "next/navigation";
+import { buildArticleSearchText } from "@/lib/article-search";
 import { getPrisma } from "./db";
 import { requireSiteOwner } from "./auth";
 
@@ -22,20 +23,6 @@ export type ArticleActionState = {
 function value(formData: FormData, name: string) {
   const result = formData.get(name);
   return typeof result === "string" ? result.trim() : "";
-}
-
-function searchText(title: string, excerpt: string, body: string) {
-  const plainBody = body
-    .replace(/^\s*(```|~~~)[^\n]*\n?/gm, "")
-    .replace(/!?\[([^\]]*)\]\([^)]+\)/g, "$1")
-    .replace(/^\s{0,3}#{1,6}\s+/gm, "")
-    .replace(/^\s{0,3}>\s?/gm, "")
-    .replace(/[*_~`]/g, "")
-    .replace(/<[^>]+>/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-
-  return `${title} ${excerpt} ${plainBody}`.normalize("NFKC").trim();
 }
 
 function isUniqueViolation(error: unknown) {
@@ -128,7 +115,7 @@ export async function saveArticle(
     excerpt: values.excerpt,
     bodyLanguage: values.bodyLanguage || null,
     body: values.body,
-    searchText: searchText(values.title, values.excerpt, values.body),
+    searchText: buildArticleSearchText(values),
     ...(intent === "publish"
       ? {
           slug,
