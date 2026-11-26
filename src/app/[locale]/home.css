@@ -30,9 +30,29 @@
   height: 100%;
 }
 
+.home-hero__character picture {
+  z-index: 1;
+}
+
 .home-hero__character img {
   object-fit: cover;
   object-position: center 48%;
+}
+
+.home-hero__character[data-character-stage="rendered"] img {
+  opacity: 0;
+}
+
+.home-character__canvas {
+  position: absolute !important;
+  z-index: 0;
+  inset: 0;
+}
+
+.home-character__canvas canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
 }
 
 .home-hero__wordmark {

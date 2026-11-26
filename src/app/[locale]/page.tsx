@@ -1,6 +1,7 @@
 import { ArrowUpRight } from "lucide-react";
 import { getTranslations } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
+import { HomeCharacter } from "./_components/home-character";
 import "./home.css";
 
 const workflow = [
@@ -55,22 +56,7 @@ export default async function HomePage() {
   return (
     <main className="home-page">
       <section className="home-hero" id="top" aria-label="LAWSON">
-        <div className="home-hero__character" data-character-stage="static-fallback">
-          <picture>
-            <source
-              media="(max-width: 767px)"
-              srcSet="/images/character/static-mobile.webp"
-            />
-            <img
-              src="/images/character/static-desktop.webp"
-              alt={t("characterAlt")}
-              fetchPriority="high"
-            />
-          </picture>
-          <span className="home-hero__wordmark" aria-hidden="true">
-            LAWSON
-          </span>
-        </div>
+        <HomeCharacter alt={t("characterAlt")} />
         <div className="home-hero__content" data-home-content-slot>
           <p className="home-hero__slogan">STAY CURIOUS. KEEP BUILDING.</p>
           {/* #46 在此补入正式介绍与可配置的联系入口。 */}
