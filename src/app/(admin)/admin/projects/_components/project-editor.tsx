@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState, type FormEvent } from "react";
+import { useActionState, useRef, type FormEvent } from "react";
+import { CoverImageField, MarkdownImageButton } from "@/components/admin/media-uploader";
 import {
   publishProject,
   saveProject,
@@ -28,6 +29,7 @@ export function ProjectEditor({ project }: { project?: ProjectEditorData }) {
   const [saveState, saveAction, saving] = useActionState(saveProject, null);
   const [publishState, publishAction, publishing] = useActionState(publishProject, null);
   const [withdrawState, withdrawAction, withdrawing] = useActionState(withdrawProject, null);
+  const bodyRef = useRef<HTMLTextAreaElement>(null);
   const published = project?.status === "PUBLISHED";
   const frozen = Boolean(project?.firstPublishedAt);
 
@@ -88,15 +90,26 @@ export function ProjectEditor({ project }: { project?: ProjectEditorData }) {
           <input name="url" type="url" defaultValue={project?.url ?? ""} placeholder="https://example.com" autoComplete="url" />
           <span className="admin-project-help">外部卡片必填；站内详情可选。</span>
         </label>
-        <label>
-          封面路径
-          <input name="coverImage" defaultValue={project?.coverImage ?? ""} placeholder="media/projects/cover.webp" autoComplete="off" />
-          <span className="admin-project-help">可留空。填写相对媒体路径。</span>
-        </label>
-        <label>
-          项目正文（Markdown）
-          <textarea className="admin-project-form__body" name="body" rows={14} defaultValue={project?.body ?? ""} />
-        </label>
+        <CoverImageField
+          id="project-cover-image"
+          name="coverImage"
+          label="封面图片"
+          initialValue={project?.coverImage ?? ""}
+        />
+        <div className="admin-project-form__body-field">
+          <div className="article-editor__label-row">
+            <label htmlFor="project-body">项目正文（Markdown）</label>
+            <MarkdownImageButton textareaRef={bodyRef} />
+          </div>
+          <textarea
+            ref={bodyRef}
+            id="project-body"
+            className="admin-project-form__body"
+            name="body"
+            rows={14}
+            defaultValue={project?.body ?? ""}
+          />
+        </div>
         <label>
           正文语言
           <select name="contentLanguage" defaultValue={project?.contentLanguage ?? ""}>

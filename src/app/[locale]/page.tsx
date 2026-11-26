@@ -1,12 +1,30 @@
+import { connection } from "next/server";
+import type { Metadata } from "next";
 import { ArrowUpRight } from "lucide-react";
 import { getTranslations } from "next-intl/server";
 import { Suspense } from "react";
 import { Link } from "@/i18n/navigation";
+import { buildHomeMetadata } from "@/lib/seo";
 import { HomeCharacter } from "./_components/home-character";
 import { getSiteSetting } from "@/server/site-settings";
 import "./home.css";
 
 export const instant = false;
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ locale: string }>;
+}): Promise<Metadata> {
+  await connection();
+  const { locale } = await params;
+  const description = locale === "en" ? "Lawson's personal website" : "Lawson 的个人网站";
+  return buildHomeMetadata({
+    locale,
+    title: "LAWSON",
+    description,
+  });
+}
 
 const workflow = [
   {

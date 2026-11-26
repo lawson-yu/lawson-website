@@ -10,32 +10,32 @@ import {
   clampArticleLimit,
   normalizeSearchQuery,
 } from "@/lib/article-search";
+import { DEFAULT_CARD_COVER_PATH } from "@/lib/media-url";
+import { buildListMetadata } from "@/lib/seo";
 import { getArticleImageUrl, getPublishedArticles, getPublishedTags } from "@/server/articles";
 import { LoadMoreArticles } from "./_components/load-more-articles";
 import "./articles.css";
 
 type ArticlesPageProps = {
   params: Promise<{ locale: string }>;
-  searchParams: Promise<{ q?: string; tag?: string; limit?: string }>;
+  searchParams: Promise<{ tag?: string; q?: string; limit?: string }>;
 };
 
-export async function generateMetadata({ params }: ArticlesPageProps): Promise<Metadata> {
+export async function generateMetadata({ params, searchParams }: ArticlesPageProps): Promise<Metadata> {
   await connection();
-  const { locale } = await params;
+  const [{ locale }, resolvedSearch] = await Promise.all([params, searchParams]);
   const t = await getTranslations({ locale, namespace: "Articles" });
+  const hasFilterOrLoadState = Boolean(
+    resolvedSearch.tag?.trim() || resolvedSearch.q?.trim() || resolvedSearch.limit?.trim(),
+  );
 
-  return {
+  return buildListMetadata({
+    locale,
+    section: "articles",
     title: `${t("title")} | LAWSON`,
     description: t("description"),
-    alternates: {
-      canonical: `/${locale}/articles`,
-      languages: {
-        zh: "/zh/articles",
-        en: "/en/articles",
-        "x-default": "/zh/articles",
-      },
-    },
-  };
+    hasFilterOrLoadState,
+  });
 }
 
 export default function ArticlesPage(props: ArticlesPageProps) {
@@ -142,9 +142,7 @@ async function ArticlesPageContent({ params, searchParams }: ArticlesPageProps) 
                   <Link className="article-card__image" href={`/articles/${article.slug}`} aria-label={article.title}>
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
-                      src={article.coverImageKey
-                        ? getArticleImageUrl(article.coverImageKey)
-                        : "/images/prototype/article-list/fragment.webp"}
+                      src={getArticleImageUrl(article.coverImageKey) || DEFAULT_CARD_COVER_PATH}
                       alt=""
                       loading="lazy"
                     />

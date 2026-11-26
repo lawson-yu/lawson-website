@@ -5,7 +5,9 @@ import { getTranslations } from "next-intl/server";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { Link } from "@/i18n/navigation";
-import { getArticleImageUrl, getPublishedArticle } from "@/server/articles";
+import { resolveMediaUrl } from "@/lib/media-url";
+import { buildDetailMetadata } from "@/lib/seo";
+import { getPublishedArticle } from "@/server/articles";
 import { ArticleMarkdown, getArticleHeadings, type ArticleHeading } from "./_components/article-markdown";
 
 type ArticlePageProps = {
@@ -31,42 +33,15 @@ export async function generateMetadata({ params }: ArticlePageProps): Promise<Me
   const article = await readArticle(slug);
   if (!article) return { robots: { index: false, follow: false } };
 
-  const bodyLocale = article.bodyLanguage === "en" ? "en" : "zh";
-  const canonical = `/${bodyLocale}/articles/${slug}`;
-  const image = article.coverImageKey
-    ? getArticleImageUrl(article.coverImageKey)
-    : "/images/prototype/article-list/fragment.webp";
-
-  return {
-    metadataBase: new URL(process.env.SITE_URL || process.env.BETTER_AUTH_URL || "http://localhost:3000"),
+  return buildDetailMetadata({
+    section: "articles",
+    slug,
     title: article.title,
     description: article.excerpt,
-    alternates: {
-      canonical,
-      languages: {
-        zh: `/zh/articles/${slug}`,
-        en: `/en/articles/${slug}`,
-        "x-default": canonical,
-      },
-    },
-    openGraph: {
-      type: "article",
-      title: article.title,
-      description: article.excerpt,
-      url: canonical,
-      locale: bodyLocale === "en" ? "en_US" : "zh_CN",
-      alternateLocale: bodyLocale === "en" ? ["zh_CN"] : ["en_US"],
-      publishedTime: article.firstPublishedAt.toISOString(),
-      authors: ["Lawson"],
-      images: [image],
-    },
-    twitter: {
-      card: "summary_large_image",
-      title: article.title,
-      description: article.excerpt,
-      images: [image],
-    },
-  };
+    bodyLanguage: article.bodyLanguage,
+    coverImageKey: article.coverImageKey,
+    publishedTime: article.firstPublishedAt,
+  });
 }
 
 function formatDate(date: Date, locale: string) {
@@ -138,6 +113,7 @@ async function ArticlePageContent({ params }: ArticlePageProps) {
   const h2Count = headings.filter(({ depth }) => depth === 2).length;
   const showContents = h2Count >= 2;
   const bodyLanguage = article.bodyLanguage === "en" ? "en" : "zh";
+  const coverUrl = resolveMediaUrl(article.coverImageKey);
 
   return (
     <main className="article-reading">
@@ -164,10 +140,10 @@ async function ArticlePageContent({ params }: ArticlePageProps) {
                 ))}
               </div>
             )}
-            {article.coverImageKey && (
+            {coverUrl && (
               <figure className="article-reading__cover">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={getArticleImageUrl(article.coverImageKey)} alt="" />
+                <img src={coverUrl} alt="" />
               </figure>
             )}
           </div>

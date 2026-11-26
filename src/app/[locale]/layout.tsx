@@ -7,12 +7,26 @@ import { PublicFooter } from "@/components/public-site/public-footer";
 import { PublicNavigation } from "@/components/public-site/public-navigation";
 import { DesktopSmoothScroll } from "@/components/public-site/desktop-smooth-scroll";
 import { routing } from "@/i18n/routing";
+import { DEFAULT_OG_IMAGE_PATH } from "@/lib/media-url";
+import { getSiteOrigin, OG_IMAGE_HEIGHT, OG_IMAGE_WIDTH } from "@/lib/seo";
 import "../globals.css";
 import "@/components/public-site/public-site.css";
 
 export const metadata: Metadata = {
+  metadataBase: new URL(getSiteOrigin()),
   title: "LAWSON",
   description: "Lawson 的个人网站",
+  openGraph: {
+    siteName: "LAWSON",
+    images: [
+      {
+        url: DEFAULT_OG_IMAGE_PATH,
+        width: OG_IMAGE_WIDTH,
+        height: OG_IMAGE_HEIGHT,
+        alt: "LAWSON",
+      },
+    ],
+  },
 };
 
 export function generateStaticParams() {
