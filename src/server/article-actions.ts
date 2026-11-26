@@ -15,6 +15,7 @@ export type ArticleActionState = {
     bodyLanguage?: string;
     body?: string;
     slug?: string;
+    tagIds?: string[];
   };
 };
 
@@ -66,6 +67,10 @@ export async function saveArticle(
     bodyLanguage: value(formData, "bodyLanguage"),
     body: value(formData, "body"),
     slug: value(formData, "slug"),
+    tagIds: [...new Set(formData.getAll("tagIds")
+      .filter((item): item is string => typeof item === "string")
+      .map((id) => id.trim())
+      .filter(Boolean))],
   };
   if (!["save", "publish", "withdraw"].includes(intent)) {
     return { revision: previousState.revision + 1, message: "操作无效，请重新提交。", values };
@@ -86,6 +91,15 @@ export async function saveArticle(
     updateTag(`article-${existing.slug}`);
     updateTag(`article-id-${existing.id}`);
     redirect(`/admin/articles/${existing.id}`);
+  }
+
+  const validTagCount = await prisma.tag.count({ where: { id: { in: values.tagIds } } });
+  if (validTagCount !== values.tagIds.length) {
+    return {
+      revision: previousState.revision + 1,
+      message: "标签已变化，请刷新页面后重试。",
+      values,
+    };
   }
 
   const slug = existing?.slug ?? values.slug;
@@ -126,8 +140,13 @@ export async function saveArticle(
 
   try {
     const article = existing
-      ? await prisma.article.update({ where: { id: existing.id }, data })
-      : await prisma.article.create({ data });
+      ? await prisma.article.update({
+          where: { id: existing.id },
+          data: { ...data, tags: { set: values.tagIds.map((id) => ({ id })) } },
+        })
+      : await prisma.article.create({
+          data: { ...data, tags: { connect: values.tagIds.map((id) => ({ id })) } },
+        });
     updateTag("articles");
     updateTag(`article-id-${article.id}`);
     if (existing?.slug) updateTag(`article-${existing.slug}`);

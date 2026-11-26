@@ -3,7 +3,7 @@ import "server-only";
 import { cacheTag } from "next/cache";
 import { getPrisma } from "./db";
 
-export async function getPublishedArticles() {
+export async function getPublishedArticles(tagId?: string, limit = 6) {
   "use cache";
   cacheTag("articles");
 
@@ -12,9 +12,39 @@ export async function getPublishedArticles() {
       status: "PUBLISHED",
       slug: { not: null },
       firstPublishedAt: { not: null },
+      ...(tagId ? { tags: { some: { id: tagId } } } : {}),
     },
     orderBy: [{ firstPublishedAt: "desc" }, { id: "desc" }],
+    take: limit + 1,
     include: { tags: true },
+  });
+}
+
+export async function getPublishedTags() {
+  "use cache";
+  cacheTag("articles");
+
+  return getPrisma().tag.findMany({
+    where: {
+      articles: {
+        some: {
+          status: "PUBLISHED",
+          slug: { not: null },
+          firstPublishedAt: { not: null },
+        },
+      },
+    },
+    orderBy: { name: "asc" },
+  });
+}
+
+export async function getAdminTags() {
+  "use cache";
+  cacheTag("articles");
+
+  return getPrisma().tag.findMany({
+    orderBy: { name: "asc" },
+    include: { _count: { select: { articles: true } } },
   });
 }
 
@@ -45,7 +75,7 @@ export async function getAdminArticle(id: string) {
   "use cache";
   cacheTag("articles", `article-id-${id}`);
 
-  return getPrisma().article.findUnique({ where: { id } });
+  return getPrisma().article.findUnique({ where: { id }, include: { tags: true } });
 }
 
 export async function isPublishedArticleSlug(slug: string) {
