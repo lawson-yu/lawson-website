@@ -59,8 +59,8 @@ export default async function HomePage() {
 
   return (
     <main className="home-page">
+      <HomeCharacter alt={t("characterAlt")} />
       <section className="home-hero" id="top" aria-label="LAWSON">
-        <HomeCharacter alt={t("characterAlt")} />
         <div className="home-hero__content" data-home-content-slot>
           <p className="home-hero__slogan">STAY CURIOUS. KEEP BUILDING.</p>
           {siteSetting?.heroIntroduction && (
@@ -83,12 +83,13 @@ export default async function HomePage() {
             )}
           </div>
         </div>
-        <p className="home-hero__explore" aria-hidden="true">
-          {t("explore")}
+        <p className="home-hero__explore" data-scroll-target="#featured-articles" aria-hidden="true">
+          <span className="home-hero__explore-label">{t("explore")}</span>
+          <span className="home-hero__explore-description">{t("exploreDescription")}</span>
         </p>
       </section>
 
-      <section className="home-section home-process" aria-labelledby="process-title">
+      <section className="home-section home-process" data-home-motion="process" aria-labelledby="process-title">
         <div className="home-section__heading">
           <h2 id="process-title">{t("processTitle")}</h2>
           <p>{t("processDescription")}</p>
