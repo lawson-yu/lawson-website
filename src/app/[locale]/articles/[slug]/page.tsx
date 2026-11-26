@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { ArrowLeft, ArrowUpRight, ChevronDown } from "lucide-react";
 import { getTranslations } from "next-intl/server";
 import { notFound } from "next/navigation";
+import { Suspense } from "react";
 import { Link } from "@/i18n/navigation";
 import { getArticleImageUrl, getPublishedArticle } from "@/server/articles";
 import { ArticleMarkdown, getArticleHeadings, type ArticleHeading } from "./_components/article-markdown";
@@ -114,7 +115,15 @@ function TableOfContents({
   );
 }
 
-export default async function ArticlePage({ params }: ArticlePageProps) {
+export default function ArticlePage({ params }: ArticlePageProps) {
+  return (
+    <Suspense fallback={<main className="article-reading" aria-busy="true" />}>
+      <ArticlePageContent params={params} />
+    </Suspense>
+  );
+}
+
+async function ArticlePageContent({ params }: ArticlePageProps) {
   const { locale, slug } = await params;
   const [t, article] = await Promise.all([
     getTranslations({ locale, namespace: "Articles" }),
