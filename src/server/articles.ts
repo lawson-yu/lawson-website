@@ -1,23 +1,64 @@
 import "server-only";
 
 import { cacheTag } from "next/cache";
+import {
+  ARTICLE_BATCH_SIZE,
+  MAX_ARTICLE_LIMIT,
+  buildArticleSearchText,
+  normalizeSearchQuery,
+} from "@/lib/article-search";
 import { getPrisma } from "./db";
 
-export async function getPublishedArticles(tagId?: string, limit = 6) {
+export async function getPublishedArticles(
+  tagId?: string,
+  limit = ARTICLE_BATCH_SIZE,
+  query?: string,
+) {
   "use cache";
   cacheTag("articles");
 
-  return getPrisma().article.findMany({
-    where: {
-      status: "PUBLISHED",
-      slug: { not: null },
-      firstPublishedAt: { not: null },
-      ...(tagId ? { tags: { some: { id: tagId } } } : {}),
-    },
-    orderBy: [{ firstPublishedAt: "desc" }, { id: "desc" }],
-    take: limit + 1,
-    include: { tags: true },
-  });
+  const prisma = getPrisma();
+  const normalizedQuery = normalizeSearchQuery(query);
+  const safeLimit = Math.min(Math.max(limit, ARTICLE_BATCH_SIZE), MAX_ARTICLE_LIMIT);
+
+  const where = {
+    status: "PUBLISHED" as const,
+    slug: { not: null },
+    firstPublishedAt: { not: null },
+    ...(tagId ? { tags: { some: { id: tagId } } } : {}),
+  };
+  const orderBy = [{ firstPublishedAt: "desc" as const }, { id: "desc" as const }];
+  const take = safeLimit + 1;
+
+  if (!normalizedQuery) {
+    return prisma.article.findMany({ where, orderBy, take, include: { tags: true } });
+  }
+
+  const [indexedArticles, legacyArticles] = await Promise.all([
+    prisma.article.findMany({
+      where: { ...where, searchText: { contains: normalizedQuery, mode: "insensitive" } },
+      orderBy,
+      take,
+      include: { tags: true },
+    }),
+    prisma.article.findMany({
+      where: { ...where, searchText: "" },
+      include: { tags: true },
+    }),
+  ]);
+
+  // shortcut: legacy articles are scanned for each new query; add a deploy-time backfill if volume makes this expensive.
+  return [
+    ...indexedArticles,
+    ...legacyArticles.filter((article) =>
+      buildArticleSearchText(article).toLowerCase().includes(normalizedQuery.toLowerCase()),
+    ),
+  ]
+    .sort((left, right) =>
+      right.firstPublishedAt!.getTime() - left.firstPublishedAt!.getTime() ||
+      (left.id > right.id ? -1 : left.id < right.id ? 1 : 0),
+    )
+    .slice(0, take);
 }
 
 export async function getPublishedTags() {

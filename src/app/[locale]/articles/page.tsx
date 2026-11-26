@@ -3,21 +3,21 @@ import type { Metadata } from "next";
 import { getTranslations } from "next-intl/server";
 import { Suspense } from "react";
 import { Link } from "@/i18n/navigation";
+import {
+  ARTICLE_BATCH_SIZE,
+  MAX_ARTICLE_LIMIT,
+  buildArticlesHref,
+  clampArticleLimit,
+  normalizeSearchQuery,
+} from "@/lib/article-search";
 import { getArticleImageUrl, getPublishedArticles, getPublishedTags } from "@/server/articles";
 import { LoadMoreArticles } from "./_components/load-more-articles";
 import "./articles.css";
 
-const ARTICLE_BATCH_SIZE = 6;
-
 type ArticlesPageProps = {
   params: Promise<{ locale: string }>;
-  searchParams: Promise<{ tag?: string; limit?: string }>;
+  searchParams: Promise<{ q?: string; tag?: string; limit?: string }>;
 };
-
-function articleLimit(value?: string) {
-  const limit = Number(value);
-  return Number.isSafeInteger(limit) && limit >= ARTICLE_BATCH_SIZE ? limit : ARTICLE_BATCH_SIZE;
-}
 
 export async function generateMetadata({ params }: ArticlesPageProps): Promise<Metadata> {
   await connection();
@@ -48,17 +48,22 @@ export default function ArticlesPage(props: ArticlesPageProps) {
 
 async function ArticlesPageContent({ params, searchParams }: ArticlesPageProps) {
   await connection();
-  const [{ locale }, { tag: requestedTag, limit: requestedLimit }] = await Promise.all([params, searchParams]);
+  const [
+    { locale },
+    { q: requestedQuery, tag: requestedTag, limit: requestedLimit },
+  ] = await Promise.all([params, searchParams]);
   const [t, tags] = await Promise.all([
     getTranslations({ locale, namespace: "Articles" }),
     getPublishedTags(),
   ]);
+  const query = normalizeSearchQuery(requestedQuery);
   const selectedTag = tags.find((tag) => tag.id === requestedTag);
   const invalidTag = Boolean(requestedTag) && !selectedTag;
-  const limit = invalidTag ? ARTICLE_BATCH_SIZE : articleLimit(requestedLimit);
-  const result = await getPublishedArticles(selectedTag?.id, limit);
-  const hasMore = result.length > limit;
+  const limit = invalidTag ? ARTICLE_BATCH_SIZE : clampArticleLimit(requestedLimit);
+  const result = await getPublishedArticles(selectedTag?.id, limit, query);
+  const hasMore = result.length > limit && limit < MAX_ARTICLE_LIMIT;
   const articles = result.slice(0, limit);
+  const hasActiveFilter = Boolean(query || selectedTag);
 
   return (
     <main className="articles-index">
@@ -75,10 +80,39 @@ async function ArticlesPageContent({ params, searchParams }: ArticlesPageProps) 
           <span>{articles.length} {t("count")}</span>
         </div>
 
+        <form
+          className="articles-index__search"
+          action={`/${locale}/articles`}
+          method="get"
+          role="search"
+        >
+          <label className="sr-only" htmlFor="articles-search-input">
+            {t("searchLabel")}
+          </label>
+          <input
+            id="articles-search-input"
+            key={query}
+            className="articles-index__search-input"
+            type="search"
+            name="q"
+            defaultValue={query}
+            placeholder={t("searchPlaceholder")}
+          />
+          {selectedTag && <input type="hidden" name="tag" value={selectedTag.id} />}
+          <button className="articles-index__search-submit" type="submit">
+            {t("searchSubmit")}
+          </button>
+          {hasActiveFilter && (
+            <Link className="articles-index__search-clear" href="/articles">
+              {t("clearFilter")}
+            </Link>
+          )}
+        </form>
+
         <nav className="articles-index__filters" aria-label={t("filterByTag")}>
           <Link
             className="articles-index__filter"
-            href="/articles"
+            href={buildArticlesHref({ q: query })}
             aria-current={!selectedTag ? "page" : undefined}
           >
             {t("allTags")}
@@ -86,7 +120,7 @@ async function ArticlesPageContent({ params, searchParams }: ArticlesPageProps) 
           {tags.map((tag) => (
             <Link
               className="articles-index__filter"
-              href={`/articles?tag=${encodeURIComponent(tag.id)}`}
+              href={buildArticlesHref({ q: query, tag: tag.id })}
               aria-current={selectedTag?.id === tag.id ? "page" : undefined}
               key={tag.id}
             >
@@ -96,7 +130,8 @@ async function ArticlesPageContent({ params, searchParams }: ArticlesPageProps) 
         </nav>
         {invalidTag && (
           <p className="articles-index__notice" role="status">
-            {t("invalidTag")} <Link href="/articles">{t("clearFilter")}</Link>
+            {query ? t("invalidTagWithQuery") : t("invalidTag")}{" "}
+            <Link href="/articles">{t("clearFilter")}</Link>
           </p>
         )}
         {articles.length ? (
@@ -144,11 +179,23 @@ async function ArticlesPageContent({ params, searchParams }: ArticlesPageProps) 
             ))}
           </ul>
         ) : (
-          <p className="articles-index__empty" role="status">{t("empty")}</p>
+          <p className="articles-index__empty" role="status">
+            {hasActiveFilter ? (
+              <>
+                {t("emptySearch")} <Link href="/articles">{t("clearFilter")}</Link>
+              </>
+            ) : (
+              t("empty")
+            )}
+          </p>
         )}
         {hasMore && (
           <LoadMoreArticles
-            href={`/articles?${selectedTag ? `tag=${encodeURIComponent(selectedTag.id)}&` : ""}limit=${limit + ARTICLE_BATCH_SIZE}`}
+            href={buildArticlesHref({
+              q: query,
+              tag: selectedTag?.id,
+              limit: limit + ARTICLE_BATCH_SIZE,
+            })}
             label={t("loadMore")}
           />
         )}
