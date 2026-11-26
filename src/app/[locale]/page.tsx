@@ -5,8 +5,15 @@ import { getTranslations } from "next-intl/server";
 import { Suspense } from "react";
 import { Link } from "@/i18n/navigation";
 import { buildHomeMetadata } from "@/lib/seo";
+import { getFeaturedArticles } from "@/server/articles";
+import { getFeaturedProjects } from "@/server/projects";
 import { HomeCharacter } from "./_components/home-character";
+import { HomeParticleTransition } from "./_components/home-particle-transition";
 import { getSiteSetting } from "@/server/site-settings";
+import { ArticleCard } from "./articles/_components/article-card";
+import { ProjectCard } from "./projects/_components/project-card";
+import "./articles/articles.css";
+import "./projects/projects.css";
 import "./home.css";
 
 export const instant = false;
@@ -72,8 +79,11 @@ const services = [
   },
 ];
 
-export default async function HomePage() {
-  const t = await getTranslations("Home");
+type HomePageProps = { params: Promise<{ locale: string }> };
+
+export default async function HomePage({ params }: HomePageProps) {
+  const { locale } = await params;
+  const t = await getTranslations({ locale, namespace: "Home" });
 
   return (
     <main className="home-page">
@@ -96,6 +106,10 @@ export default async function HomePage() {
           <span className="home-hero__explore-description">{t("exploreDescription")}</span>
         </p>
       </section>
+
+      <Suspense fallback={null}>
+        <HomeFeaturedContent locale={locale} />
+      </Suspense>
 
       <section className="home-section home-process" data-home-motion="process" aria-labelledby="process-title">
         <div className="home-section__heading">
@@ -140,6 +154,65 @@ function HomeArticleLink({ label }: { label: string }) {
       {label}
       <ArrowUpRight aria-hidden="true" size={16} />
     </Link>
+  );
+}
+
+async function HomeFeaturedContent({ locale }: { locale: string }) {
+  await connection();
+  const [t, projectT, articles, projects] = await Promise.all([
+    getTranslations({ locale, namespace: "Home" }),
+    getTranslations({ locale, namespace: "Projects" }),
+    getFeaturedArticles(),
+    getFeaturedProjects(),
+  ]);
+
+  return (
+    <>
+      {articles.length > 0 && (
+        <section
+          className="home-section home-featured home-featured-articles"
+          id="featured-articles"
+          data-home-motion="featured-articles"
+          aria-labelledby="featured-articles-title"
+        >
+          <div className="home-section__heading">
+            <h2 id="featured-articles-title">{t("featuredArticlesTitle")}</h2>
+          </div>
+          <ul className="articles-index__grid home-featured__article-grid">
+            {articles.map((article) => (
+              <li className="home-featured__article" key={article.id}>
+                <ArticleCard article={article} locale={locale} />
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      <HomeParticleTransition />
+
+      {projects.length > 0 && (
+        <section
+          className="home-section home-featured home-featured-projects"
+          id="featured-projects"
+          data-home-motion="home-projects"
+          aria-labelledby="featured-projects-title"
+        >
+          <div className="home-section__heading">
+            <h2 id="featured-projects-title">{t("featuredProjectsTitle")}</h2>
+          </div>
+          <div className="works-grid home-featured__project-grid">
+            {projects.map((project) => (
+              <ProjectCard
+                key={project.id}
+                project={project}
+                locale={locale}
+                labels={{ internal: projectT("internalTarget"), external: projectT("externalTarget") }}
+              />
+            ))}
+          </div>
+        </section>
+      )}
+    </>
   );
 }
 

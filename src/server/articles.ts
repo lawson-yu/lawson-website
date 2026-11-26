@@ -63,6 +63,32 @@ export async function getPublishedArticles(
   });
 }
 
+export async function getFeaturedArticles() {
+  "use cache";
+  cacheTag("articles");
+
+  return getPrisma().article.findMany({
+    where: {
+      status: "PUBLISHED",
+      slug: { not: null },
+      firstPublishedAt: { not: null },
+      featuredRank: { not: null },
+    },
+    orderBy: [{ featuredRank: "asc" }, { id: "asc" }],
+    take: 5,
+    select: {
+      id: true,
+      slug: true,
+      title: true,
+      excerpt: true,
+      coverImageKey: true,
+      firstPublishedAt: true,
+      createdAt: true,
+      tags: { select: { id: true, name: true } },
+    },
+  });
+}
+
 export async function getPublishedTags() {
   "use cache";
   cacheTag("articles");

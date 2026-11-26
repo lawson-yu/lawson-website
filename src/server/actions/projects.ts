@@ -2,6 +2,7 @@
 
 import { randomUUID } from "node:crypto";
 import { updateTag } from "next/cache";
+import { getFeaturedRankUpdates, type FeaturedIntent } from "@/lib/featured-rank";
 import { ProjectCardTarget } from "@/generated/prisma/client";
 import { normalizeSubmittedMediaKey } from "@/lib/media-url";
 import { getPrisma } from "@/server/db";
@@ -210,4 +211,49 @@ export async function withdrawProject(
   });
   updateTag("projects");
   return { kind: "success", message: "作品已撤下，公开入口已关闭。" };
+}
+
+export async function updateFeaturedProject(formData: FormData) {
+  await requireSiteOwner();
+
+  const id = readText(formData, "id").trim();
+  const rawIntent = readText(formData, "intent").trim();
+  if (!id || !["add", "remove", "up", "down"].includes(rawIntent)) return;
+
+  const changed = await getPrisma().$transaction(async (transaction) => {
+    const target = await transaction.project.findUnique({
+      where: { id },
+      select: { id: true, status: true, featuredRank: true },
+    });
+    if (!target) return false;
+
+    const featured = await transaction.project.findMany({
+      where: { status: { in: ["PUBLISHED", "WITHDRAWN"] }, featuredRank: { not: null } },
+      orderBy: [{ featuredRank: "asc" }, { id: "asc" }],
+      select: { id: true, status: true, featuredRank: true },
+    });
+    const updates = getFeaturedRankUpdates(
+      featured,
+      target,
+      rawIntent as FeaturedIntent,
+      3,
+    );
+    if (!updates) return false;
+
+    for (const item of updates.updates) {
+      await transaction.project.update({
+        where: { id: item.id },
+        data: { featuredRank: item.featuredRank },
+      });
+    }
+    if (updates.clearId) {
+      await transaction.project.update({
+        where: { id: updates.clearId },
+        data: { featuredRank: null },
+      });
+    }
+    return true;
+  }, { isolationLevel: "Serializable" });
+
+  if (changed) updateTag("projects");
 }
