@@ -3,6 +3,7 @@
 import { randomUUID } from "node:crypto";
 import { updateTag } from "next/cache";
 import { ProjectCardTarget } from "@/generated/prisma/client";
+import { normalizeSubmittedMediaKey } from "@/lib/media-url";
 import { getPrisma } from "@/server/db";
 import { requireSiteOwner } from "@/server/auth";
 
@@ -82,6 +83,12 @@ export async function saveProject(
   const existing = id ? await prisma.project.findUnique({ where: { id } }) : null;
   if (id && !existing) return { kind: "error", message: "找不到要编辑的作品，请刷新后重试。" };
 
+  const rawCoverImage = readText(formData, "coverImage").trim();
+  const normalizedCoverImage = normalizeSubmittedMediaKey(rawCoverImage);
+  if (rawCoverImage && !normalizedCoverImage) {
+    return { kind: "error", message: "封面路径格式无效，请通过上传按钮上传或填写合法的相对媒体路径。" };
+  }
+
   const submittedSlug = readText(formData, "slug").trim();
   const slug = existing?.firstPublishedAt
     ? existing.slug
@@ -93,7 +100,7 @@ export async function saveProject(
     type: readText(formData, "type").trim(),
     cardTarget,
     url: readText(formData, "url").trim() || null,
-    coverImage: readText(formData, "coverImage").trim() || null,
+    coverImage: normalizedCoverImage,
     body: readText(formData, "body") || null,
     contentLanguage: readText(formData, "contentLanguage").trim() || null,
   };

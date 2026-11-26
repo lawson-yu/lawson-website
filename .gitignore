@@ -47,3 +47,4 @@ next-env.d.ts
 # 备份与本地配置
 /backups
 deploy/backup.env
+/public/uploads/
