@@ -1,3 +1,4 @@
+import { connection } from "next/server";
 import type { Metadata } from "next";
 import { ArrowLeft, ArrowUpRight, ChevronDown } from "lucide-react";
 import { getTranslations } from "next-intl/server";
@@ -25,6 +26,7 @@ async function readArticle(slug: string): Promise<PublishedArticle | null> {
 }
 
 export async function generateMetadata({ params }: ArticlePageProps): Promise<Metadata> {
+  await connection();
   const { slug } = await params;
   const article = await readArticle(slug);
   if (!article) return { robots: { index: false, follow: false } };
@@ -124,6 +126,7 @@ export default function ArticlePage({ params }: ArticlePageProps) {
 }
 
 async function ArticlePageContent({ params }: ArticlePageProps) {
+  await connection();
   const { locale, slug } = await params;
   const [t, article] = await Promise.all([
     getTranslations({ locale, namespace: "Articles" }),

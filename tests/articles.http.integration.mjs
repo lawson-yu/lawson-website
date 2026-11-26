@@ -130,39 +130,48 @@ after(async () => {
   await Promise.race([once(server, "exit"), delay(5_000)]);
 });
 
-test("双语文章列表与详情仅公开已发布文章，其他地址返回真实 404", async () => {
-  const production = process.env.TEST_NEXT_COMMAND === "start";
-
+test("双语文章与作品列表、详情只公开已发布内容，草稿、撤下和无效地址返回真实 404", async () => {
   for (const locale of ["zh", "en"]) {
     const listResponse = await fetch(`${origin}/${locale}/articles`);
     const list = await listResponse.text();
 
     assert.equal(listResponse.status, 200);
     assert.match(list, locale === "zh" ? /最新文章/ : /Latest articles/);
+    assert.match(list, /已发布的文章/);
+    assert.match(list, new RegExp(`href="/${locale}/articles/published-article"`));
+    assert.doesNotMatch(list, /未发布的文章|已撤下的文章/);
 
-    if (production) {
-      assert.match(list, /文章正在整理中|Articles are being prepared/);
-    } else {
-      assert.match(list, /已发布的文章/);
-      assert.match(list, new RegExp(`href="/${locale}/articles/published-article"`));
-      assert.doesNotMatch(list, /未发布的文章|已撤下的文章/);
+    const detailResponse = await fetch(`${origin}/${locale}/articles/published-article`);
+    const detail = await detailResponse.text();
 
-      const detailResponse = await fetch(`${origin}/${locale}/articles/published-article`);
-      const detail = await detailResponse.text();
+    assert.equal(detailResponse.status, 200);
+    assert.match(detail, /已发布的文章/);
+    assert.match(detail, /Lawson/);
+    assert.match(detail, /主要内容/);
+    assert.match(detail, /<h2 id="主要内容">/);
+    assert.match(detail, /article-reading__tags/);
+    assert.match(detail, /AI/);
+    assert.match(detail, /article-reading__cover/);
+    assert.match(detail, /<time dateTime=/i);
+    assert.match(detail, /文章摘要/);
+    assert.match(detail, new RegExp(`<html[^>]*lang="${locale}"`));
+    assert.match(detail, /<article[^>]*lang="zh"/);
 
-      assert.equal(detailResponse.status, 200);
-      assert.match(detail, /已发布的文章/);
-      assert.match(detail, /Lawson/);
-      assert.match(detail, /主要内容/);
-      assert.match(detail, /<h2 id="主要内容">/);
-      assert.match(detail, /article-reading__tags/);
-      assert.match(detail, /AI/);
-      assert.match(detail, /article-reading__cover/);
-      assert.match(detail, /<time dateTime=/i);
-      assert.match(detail, /文章摘要/);
-      assert.match(detail, new RegExp(`<html[^>]*lang="${locale}"`));
-      assert.match(detail, /<article[^>]*lang="zh"/);
-    }
+    const projectsResponse = await fetch(`${origin}/${locale}/projects`);
+    const projects = await projectsResponse.text();
+    assert.equal(projectsResponse.status, 200);
+    assert.match(projects, /已发布作品/);
+    assert.match(projects, new RegExp(`href="/${locale}/projects/published-internal-project"`));
+    assert.doesNotMatch(projects, /未发布内链作品|已撤下内链作品/);
+
+    const projectResponse = await fetch(`${origin}/${locale}/projects/published-internal-project`);
+    const project = await projectResponse.text();
+    assert.equal(projectResponse.status, 200);
+    assert.match(project, /<h1[^>]*>已发布作品<\/h1>/);
+    assert.match(project, /<h2[^>]*>项目正文/);
+    assert.match(project, /跨语言界面下的项目内容。/);
+    assert.match(project, new RegExp(`<html[^>]*lang="${locale}"`));
+    assert.match(project, /class="project-detail__body" lang="zh"/);
   }
 
   for (const locale of ["zh", "en"]) {
@@ -171,7 +180,11 @@ test("双语文章列表与详情仅公开已发布文章，其他地址返回�
       const body = await response.text();
 
       assert.equal(response.status, 404, `${locale}/${slug} 必须返回 HTTP 404`);
-      assert.match(body, new RegExp(`href="/${locale}/articles"`));
+      assert.match(body, new RegExp(`href="/${locale}/articles`));
+    }
+    for (const slug of ["missing-project", "legacy-internal", "withdrawn-internal-project", "personal-website"]) {
+      const response = await fetch(`${origin}/${locale}/projects/${slug}`);
+      assert.equal(response.status, 404, `${locale}/${slug} 必须返回 HTTP 404`);
     }
   }
 });

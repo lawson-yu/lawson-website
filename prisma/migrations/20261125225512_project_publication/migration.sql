@@ -21,20 +21,29 @@ ADD COLUMN     "firstPublishedAt" TIMESTAMP(3),
 ADD COLUMN     "status" "ContentStatus" NOT NULL DEFAULT 'DRAFT',
 ADD COLUMN     "type" TEXT NOT NULL DEFAULT '';
 
-UPDATE "Project"
+WITH legacy_urls AS (
+  SELECT
+    "id",
+    "createdAt",
+    "url" ~* '^https?://(\[[[:xdigit:]:.]+\]|[[:alnum:]]([[:alnum:]-]*[[:alnum:]])?([.][[:alnum:]]([[:alnum:]-]*[[:alnum:]])?)*)(:[0-9]{1,5})?([/?#][^[:space:]]*)?$' AS "validExternal"
+  FROM "Project"
+)
+UPDATE "Project" AS project
 SET "type" = '项目',
     "cardTarget" = CASE
-      WHEN "url" ~* '^https?://[^[:space:]]+' THEN 'EXTERNAL'::"ProjectCardTarget"
+      WHEN legacy_urls."validExternal" THEN 'EXTERNAL'::"ProjectCardTarget"
       ELSE 'INTERNAL'::"ProjectCardTarget"
     END,
     "status" = CASE
-      WHEN "url" ~* '^https?://[^[:space:]]+' THEN 'PUBLISHED'::"ContentStatus"
+      WHEN legacy_urls."validExternal" THEN 'PUBLISHED'::"ContentStatus"
       ELSE 'DRAFT'::"ContentStatus"
     END,
     "firstPublishedAt" = CASE
-      WHEN "url" ~* '^https?://[^[:space:]]+' THEN "createdAt"
+      WHEN legacy_urls."validExternal" THEN legacy_urls."createdAt"
       ELSE NULL
-    END;
+    END
+FROM legacy_urls
+WHERE project."id" = legacy_urls."id";
 
 WITH featured_projects AS (
   SELECT "id", ROW_NUMBER() OVER (ORDER BY "createdAt" DESC, "id" ASC)::INTEGER AS rank
