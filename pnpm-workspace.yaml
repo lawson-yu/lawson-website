@@ -1,7 +1,11 @@
 allowBuilds:
+  '@parcel/watcher': true
   '@prisma/engines': true
+  '@swc/core': true
   esbuild: false
   prisma: true
   sharp: false
   unrs-resolver: false
   workerd: false
+minimumReleaseAgeExclude:
+  - next-intl@4.16.2
