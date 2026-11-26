@@ -25,6 +25,18 @@
     "servicesDescription": "从设计到开发，让好想法真正被使用。",
     "characterAlt": "由点组成的人物静态图"
   },
+  "Articles": {
+    "title": "文章",
+    "description": "记录项目实践、技术探索，以及想法如何一步步落地。",
+    "latest": "最新文章",
+    "count": "篇",
+    "empty": "文章正在整理中，稍后再来看看。",
+    "back": "返回文章列表",
+    "author": "Lawson",
+    "tags": "文章标签",
+    "contents": "文章目录",
+    "continue": "继续浏览文章"
+  },
   "Footer": {
     "navigation": "站内导航",
     "socialNavigation": "社交链接",
