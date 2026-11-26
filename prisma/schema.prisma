@@ -19,17 +19,30 @@ enum ContentStatus {
   WITHDRAWN
 }
 
-model Project {
-  id          String   @id @default(cuid())
-  slug        String   @unique
-  name        String
-  description String
-  url         String?
-  featured    Boolean  @default(false)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+enum ProjectCardTarget {
+  INTERNAL
+  EXTERNAL
+}
 
-  @@index([featured, createdAt])
+model Project {
+  id               String            @id @default(cuid())
+  slug             String            @unique
+  name             String
+  description      String
+  type             String            @default("")
+  body             String?           @db.Text
+  contentLanguage  String?
+  cardTarget       ProjectCardTarget @default(INTERNAL)
+  status           ContentStatus     @default(DRAFT)
+  url              String?
+  coverImage       String?
+  featuredRank     Int?
+  firstPublishedAt DateTime?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  @@index([status, firstPublishedAt])
+  @@index([featuredRank])
 }
 
 model Article {

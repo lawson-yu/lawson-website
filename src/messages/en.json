@@ -37,6 +37,20 @@
     "contents": "On this page",
     "continue": "Continue browsing articles"
   },
+  "Projects": {
+    "title": "Works",
+    "description": "Tools for real work, alongside small experiments in new ideas.",
+    "browseAll": "Browse all works",
+    "internalTarget": "View project details",
+    "externalTarget": "External site (opens in a new tab)",
+    "emptyTitle": "Works are taking shape",
+    "emptyDescription": "New projects will appear here when they are ready.",
+    "backToWorks": "Back to works",
+    "visitProject": "Visit project",
+    "continueBrowsing": "Keep browsing works",
+    "notFoundTitle": "This page is unavailable",
+    "notFoundDescription": "The project may be unpublished, withdrawn, or the address may be incorrect."
+  },
   "Footer": {
     "navigation": "站内导航",
     "socialNavigation": "Social links",
