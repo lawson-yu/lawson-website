@@ -237,11 +237,12 @@ async function postSettings(values, cookie) {
   return fetch(`${origin}/admin`, {
     method: "POST",
     headers: {
-      cookie,
+      ...(cookie ? { cookie } : {}),
       origin,
       referer: `${origin}/admin`,
     },
     body: values,
+    redirect: "manual",
   });
 }
 
@@ -269,8 +270,9 @@ async function submitProjectAction(path, hiddenFields, values, cookie) {
   for (const [name, value] of Object.entries(values)) formData.set(name, value);
   return fetch(`${origin}${path}`, {
     method: "POST",
-    headers: { cookie, origin, referer: `${origin}${path}` },
+    headers: { ...(cookie ? { cookie } : {}), origin, referer: `${origin}${path}` },
     body: formData,
+    redirect: "manual",
   });
 }
 
@@ -344,6 +346,183 @@ test("站点设置在中英文首页共用原文并按序展示", async () => {
     assert.match(html, /GitHub/);
     assert.match(html, /个人主页/);
     assert.ok(html.indexOf("GitHub") < html.indexOf("个人主页"));
+  }
+});
+
+test("首页滚动提示保留英文且不响应点击或进入焦点顺序", async () => {
+  const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+  const page = await context.newPage();
+
+  try {
+    await page.goto(`${origin}/zh`);
+    const prompt = page.locator(".home-hero__explore");
+    assert.equal((await prompt.locator(".home-hero__explore-label").innerText()).trim(), "Explore Below ↓");
+    assert.equal((await prompt.locator(".home-hero__explore-description").innerText()).trim(), "向下浏览精选文章");
+    assert.equal(await prompt.evaluate((element) => element.tagName), "P");
+    assert.equal(await prompt.getAttribute("aria-hidden"), "true");
+    assert.equal(await prompt.getAttribute("tabindex"), null);
+    assert.equal(await prompt.getAttribute("data-scroll-target"), "#featured-articles");
+    assert.equal(await prompt.locator("a, button, [tabindex]").count(), 0);
+
+    await page.goto(`${origin}/en`);
+    assert.equal(
+      (await page.locator(".home-hero__explore-description").innerText()).trim(),
+      "Scroll to explore featured articles",
+    );
+  } finally {
+    await context.close();
+  }
+});
+
+test("首页文案和入口随滚动淡出，手机页面仍可正常滚动", { timeout: 60_000 }, async () => {
+  const desktop = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+  try {
+    const desktopPage = await desktop.newPage();
+    await desktopPage.goto(`${origin}/zh`);
+    await desktopPage.waitForFunction(
+      () => document.querySelector(".home-hero__character")?.dataset.characterStage === "rendered",
+      null,
+      { timeout: 15_000 },
+    );
+    await desktopPage.evaluate(() => window.scrollTo({ top: innerHeight * 0.75, behavior: "instant" }));
+    await desktopPage.waitForFunction(
+      () => Number(getComputedStyle(document.querySelector(".home-hero__content")).opacity) < 0.5,
+      null,
+      { timeout: 5_000 },
+    );
+    assert.ok(Number(await desktopPage.locator(".home-hero__content").evaluate((element) => getComputedStyle(element).opacity)) < 0.5);
+  } finally {
+    await desktop.close();
+  }
+
+  // 释放桌面点云上下文并等移动端首帧就绪后再发触摸手势，避免软渲染争抢吞掉滚动。
+  const mobile = await browser.newContext({
+    viewport: { width: 390, height: 844 },
+    deviceScaleFactor: 2,
+    isMobile: true,
+    hasTouch: true,
+  });
+  try {
+    const mobilePage = await mobile.newPage();
+    await mobilePage.goto(`${origin}/zh`);
+    await mobilePage.waitForFunction(
+      () => document.querySelector(".home-hero__character")?.dataset.characterStage === "rendered",
+      null,
+      { timeout: 15_000 },
+    );
+    const touch = await mobilePage.context().newCDPSession(mobilePage);
+    await touch.send("Input.synthesizeScrollGesture", {
+      x: 195,
+      y: 650,
+      yDistance: -320,
+      speed: 700,
+      gestureSourceType: "touch",
+    });
+    await mobilePage.waitForFunction(() => scrollY >= 150, null, { timeout: 15_000 });
+    assert.ok(Number(await mobilePage.locator(".home-hero__content").evaluate((element) => getComputedStyle(element).opacity)) < 1);
+    assert.ok(await mobilePage.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+    assert.ok(await mobilePage.evaluate(() => scrollY > 0));
+    await touch.detach();
+  } finally {
+    await mobile.close();
+  }
+});
+
+// CI 无 GPU 软渲染单帧与三次截图耗时较长，预留足够超时避免级联污染后续用例。
+test("桌面角色随指针移动并在指针离开后回到自然姿态", { timeout: 90_000 }, async () => {
+  const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+  const page = await context.newPage();
+
+  try {
+    await page.goto(`${origin}/zh`);
+    await page.waitForFunction(
+      () => document.querySelector(".home-hero__character")?.dataset.characterStage === "rendered",
+      null,
+      { timeout: 15_000 },
+    );
+    const canvas = page.locator(".home-character__canvas canvas");
+    await page.mouse.move(0, 0);
+    await page.waitForTimeout(800);
+    const natural = await canvas.screenshot();
+
+    await page.mouse.move(850, 220);
+    await page.waitForTimeout(350);
+    const following = await canvas.screenshot();
+    assert.ok(!following.equals(natural), "指针移动应改变角色绘制结果");
+
+    await page.mouse.move(0, 0);
+    await page.waitForTimeout(1_200);
+    const returned = await canvas.screenshot();
+    assert.ok(!returned.equals(following), "指针离开后角色应开始回到自然姿态");
+  } finally {
+    await context.close();
+  }
+});
+
+test("桌面角色只在进入流程区后切换对应阶段姿态", { timeout: 90_000 }, async () => {
+  const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+  const page = await context.newPage();
+
+  try {
+    await page.goto(`${origin}/zh`);
+    await page.waitForFunction(
+      () => document.querySelector(".home-hero__character")?.dataset.characterStage === "rendered",
+      null,
+      { timeout: 15_000 },
+    );
+    await page.mouse.move(0, 0);
+    await page.waitForTimeout(1_000);
+    const processTop = await page.locator(".home-process").evaluate(
+      (element) => element.getBoundingClientRect().top + scrollY,
+    );
+    const canvas = page.locator(".home-character__canvas canvas");
+    const changedPixels = (first, second) => page.evaluate(async ([a, b]) => {
+      const decode = async (source) => {
+        const response = await fetch(`data:image/png;base64,${source}`);
+        return createImageBitmap(await response.blob());
+      };
+      const [left, right] = await Promise.all([decode(a), decode(b)]);
+      const image = document.createElement("canvas");
+      image.width = left.width;
+      image.height = left.height;
+      const context = image.getContext("2d", { willReadFrequently: true });
+      context.drawImage(left, 0, 0);
+      const firstPixels = context.getImageData(0, 0, image.width, image.height).data;
+      context.clearRect(0, 0, image.width, image.height);
+      context.drawImage(right, 0, 0);
+      const secondPixels = context.getImageData(0, 0, image.width, image.height).data;
+      let changed = 0;
+      for (let index = 0; index < firstPixels.length; index += 4) {
+        if (Math.abs(firstPixels[index] - secondPixels[index]) +
+            Math.abs(firstPixels[index + 1] - secondPixels[index + 1]) +
+            Math.abs(firstPixels[index + 2] - secondPixels[index + 2]) > 60) changed++;
+      }
+      return changed;
+    }, [first.toString("base64"), second.toString("base64")]);
+
+    await page.evaluate(() => {
+      document.querySelector(".home-process")?.removeAttribute("data-home-motion");
+      window.dispatchEvent(new Event("scroll"));
+    });
+    await page.waitForTimeout(1_000);
+    const heroPose = await canvas.screenshot();
+
+    await page.evaluate(() => {
+      document.querySelector(".home-process")?.setAttribute("data-home-motion", "process");
+      window.dispatchEvent(new Event("scroll"));
+    });
+    await page.waitForTimeout(1_000);
+    const beforeProcess = await canvas.screenshot();
+    const earlyMovement = await changedPixels(heroPose, beforeProcess);
+    assert.ok(earlyMovement < 10_000, `流程区尚未进入视口时姿态不应切换，像素变化 ${earlyMovement} (top=${processTop})`);
+
+    await page.evaluate((top) => window.scrollTo({ top, behavior: "instant" }), processTop + 300);
+    await page.waitForTimeout(1_000);
+    const inProcess = await canvas.screenshot();
+    const stageMovement = await changedPixels(heroPose, inProcess);
+    assert.ok(stageMovement > 10_000, `进入流程区后角色应切换到该阶段姿态，像素变化 ${stageMovement}`);
+  } finally {
+    await context.close();
   }
 });
 
@@ -674,7 +853,10 @@ test("浏览器不支持 WebGL 时保留静态角色图和首页入口", { timeo
       { timeout: 5_000 },
     );
     assert.equal(await page.locator(".home-hero__character img").isVisible(), true);
-    assert.equal(await page.locator(".home-hero__primary").isVisible(), true);
+    assert.equal(
+      await page.getByRole("link", { name: "浏览文章", exact: true }).filter({ visible: true }).first().isVisible(),
+      true,
+    );
   } finally {
     await context.close();
   }
@@ -817,6 +999,102 @@ test("站长可以保存站点设置；无效或失败时保留输入并即时�
   assert.equal(adminResponse.status, 200);
   assert.match(adminHtml, /首页设置/);
   const actionForm = getActionForm(adminHtml);
+
+  const articlePageResponse = await fetch(`${origin}/admin/articles/new`, { headers: { cookie } });
+  const articlePageHtml = await articlePageResponse.text();
+  const articleActionForm = getProjectForm(articlePageHtml, (form) => form.includes('class="article-editor"'));
+  const projectsResponse = await fetch(`${origin}/admin/projects`, { headers: { cookie } });
+  const projectsHtml = await projectsResponse.text();
+  const projectActionForm = getProjectForm(projectsHtml, (form) =>
+    form.includes('class="admin-project-form"') && form.includes('name="slug" value="side-project"'),
+  );
+  const projectId = projectActionForm.find(([name]) => name === "id")?.[1];
+  assert.ok(projectId, "测试作品表单应包含作品 id");
+
+  const visitorId = `visitor-${randomUUID()}`;
+  const visitorToken = randomUUID();
+  await prisma.user.create({
+    data: {
+      id: visitorId,
+      name: "隔离测试访客",
+      email: "visitor@example.test",
+      emailVerified: true,
+      sessions: {
+        create: {
+          id: `session-${randomUUID()}`,
+          token: visitorToken,
+          expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+        },
+      },
+    },
+  });
+
+  try {
+    const initialSetting = await prisma.siteSetting.findUnique({ where: { id: 1 } });
+    const initialArticleCount = await prisma.article.count();
+    const initialProject = await prisma.project.findUnique({ where: { id: projectId } });
+    for (const [label, unauthorizedCookie] of [["匿名访客", undefined], ["非站长", sessionCookie(visitorToken)]]) {
+      const settingsResult = await postSettings(actionForm({
+        heroIntroduction: `未经授权的首页修改 ${label}`,
+        contactUrl: "https://example.com/unauthorized",
+        socialLinks: [],
+      }), unauthorizedCookie);
+      assert.ok([303, 307, 404].includes(settingsResult.status), `${label} 修改首页设置应被拒绝，收到 ${settingsResult.status}`);
+      await settingsResult.arrayBuffer();
+      assert.deepEqual(await prisma.siteSetting.findUnique({ where: { id: 1 } }), initialSetting);
+
+      const articleResult = await submitProjectAction("/admin/articles/new", articleActionForm, {
+        intent: "save",
+        title: `未经授权的文章 ${label}`,
+        excerpt: "这条提交内容完整且可保存。",
+        bodyLanguage: "zh",
+        body: "有效正文。",
+        slug: `unauthorized-${label === "匿名访客" ? "anonymous" : "visitor"}`,
+      }, unauthorizedCookie);
+      assert.ok([303, 307, 404].includes(articleResult.status), `${label} 新建文章应被拒绝，收到 ${articleResult.status}`);
+      await articleResult.arrayBuffer();
+      assert.equal(await prisma.article.count(), initialArticleCount);
+
+      const projectResult = await submitProjectAction("/admin/projects", projectActionForm, {
+        id: projectId,
+        slug: "side-project",
+        name: `未经授权的作品修改 ${label}`,
+        description: "有效的作品简介。",
+        type: "实验项目",
+        cardTarget: "INTERNAL",
+        url: "",
+        coverImage: "",
+        body: "## 正文\n\n有效作品正文。",
+        contentLanguage: "zh",
+      }, unauthorizedCookie);
+      assert.ok([303, 307, 404].includes(projectResult.status), `${label} 修改作品应被拒绝，收到 ${projectResult.status}`);
+      await projectResult.arrayBuffer();
+      assert.deepEqual(await prisma.project.findUnique({ where: { id: projectId } }), initialProject);
+    }
+  } finally {
+    await prisma.user.delete({ where: { id: visitorId } });
+  }
+
+  const articleContext = await browser.newContext();
+  try {
+    await articleContext.addCookies([{
+      name: "better-auth.session_token",
+      value: cookie.slice("better-auth.session_token=".length),
+      url: origin,
+    }]);
+    const articlePage = await articleContext.newPage();
+    await articlePage.goto(`${origin}/admin/articles/new`);
+    await articlePage.locator("#article-slug").fill("freshly-entered-slug");
+    const dialogEvent = articlePage.waitForEvent("dialog");
+    const publishClick = articlePage.getByRole("button", { name: "发布文章" }).click();
+    const dialog = await dialogEvent;
+    const confirmation = dialog.message();
+    await dialog.dismiss();
+    await publishClick;
+    assert.equal(confirmation, "确认首次发布到 /articles/freshly-entered-slug 吗？");
+  } finally {
+    await articleContext.close();
+  }
 
   const invalidResponse = await postSettings(
     actionForm({

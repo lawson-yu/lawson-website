@@ -59,21 +59,27 @@ export default async function HomePage() {
 
   return (
     <main className="home-page">
+      <HomeCharacter alt={t("characterAlt")} />
       <section className="home-hero" id="top" aria-label="LAWSON">
-        <HomeCharacter alt={t("characterAlt")} />
         <Suspense
           fallback={
-            <div className="home-hero__content" data-home-content-slot />
+            <div className="home-hero__content" data-home-content-slot>
+              <p className="home-hero__slogan">STAY CURIOUS. KEEP BUILDING.</p>
+              <div className="home-hero__actions">
+                <HomeArticleLink label={t("readArticles")} />
+              </div>
+            </div>
           }
         >
           <HomeHeroContent />
         </Suspense>
-        <p className="home-hero__explore" aria-hidden="true">
-          {t("explore")}
+        <p className="home-hero__explore" data-scroll-target="#featured-articles" aria-hidden="true">
+          <span className="home-hero__explore-label">{t("explore")}</span>
+          <span className="home-hero__explore-description">{t("exploreDescription")}</span>
         </p>
       </section>
 
-      <section className="home-section home-process" aria-labelledby="process-title">
+      <section className="home-section home-process" data-home-motion="process" aria-labelledby="process-title">
         <div className="home-section__heading">
           <h2 id="process-title">{t("processTitle")}</h2>
           <p>{t("processDescription")}</p>
@@ -110,6 +116,15 @@ export default async function HomePage() {
   );
 }
 
+function HomeArticleLink({ label }: { label: string }) {
+  return (
+    <Link className="home-hero__primary" href="/articles">
+      {label}
+      <ArrowUpRight aria-hidden="true" size={16} />
+    </Link>
+  );
+}
+
 async function HomeHeroContent() {
   const [t, siteSetting] = await Promise.all([
     getTranslations("Home"),
@@ -125,10 +140,7 @@ async function HomeHeroContent() {
         </p>
       )}
       <div className="home-hero__actions">
-        <Link className="home-hero__primary" href="/articles">
-          {t("readArticles")}
-          <ArrowUpRight aria-hidden="true" size={16} />
-        </Link>
+        <HomeArticleLink label={t("readArticles")} />
         {siteSetting?.contactUrl && (
           <a className="home-hero__secondary" href={siteSetting.contactUrl}>
             {t("contact")}

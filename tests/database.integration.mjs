@@ -94,7 +94,10 @@ test("临时数据库可以迁移、重复 seed、备份并恢复全部作品", 
      VALUES
        ('legacy-external', 'legacy-external', '旧外链作品', '保留既有外部作品。', 'https://legacy.example/work', true, '2025-03-04T05:06:07Z', '2025-03-04T05:06:07Z'),
        ('legacy-internal', 'legacy-internal', '未完成作品', '缺少公开入口的旧作品。', null, false, '2025-04-05T06:07:08Z', '2025-04-05T06:07:08Z'),
-       ('legacy-http-external', 'legacy-http-external', '旧 HTTP 外链作品', '保留有效 HTTP 作品。', 'http://legacy-http.example/work', true, '2025-04-06T06:07:08Z', '2025-04-06T06:07:08Z')`,
+       ('legacy-http-external', 'legacy-http-external', '旧 HTTP 外链作品', '保留有效 HTTP 作品。', 'http://legacy-http.example/work', true, '2025-04-06T06:07:08Z', '2025-04-06T06:07:08Z'),
+       ('legacy-spaced-url', 'legacy-spaced-url', '含空白的旧链接', '不应公开。', 'https://legacy example.com/work', false, '2025-04-07T06:07:08Z', '2025-04-07T06:07:08Z'),
+       ('legacy-no-host', 'legacy-no-host', '缺少主机的旧作品', '不应公开。', 'https:///work', false, '2025-04-08T06:07:08Z', '2025-04-08T06:07:08Z'),
+       ('legacy-query-host', 'legacy-query-host', '查询串伪装主机的旧链接', '不应公开。', 'https://?target=legacy.example', false, '2025-04-09T06:07:08Z', '2025-04-09T06:07:08Z')`,
   );
   await legacyDatabase.end();
 
@@ -172,6 +175,18 @@ test("临时数据库可以迁移、重复 seed、备份并恢复全部作品", 
   assert.equal(legacyInternal.cardTarget, "INTERNAL");
   assert.equal(legacyInternal.firstPublishedAt, null);
 
+  for (const [slug, url] of [
+    ["legacy-spaced-url", "https://legacy example.com/work"],
+    ["legacy-no-host", "https:///work"],
+    ["legacy-query-host", "https://?target=legacy.example"],
+  ]) {
+    const project = await prisma.project.findUnique({ where: { slug } });
+    assert.equal(project.status, "DRAFT", `${slug} 不应被迁移为公开作品`);
+    assert.equal(project.cardTarget, "INTERNAL");
+    assert.equal(project.firstPublishedAt, null);
+    assert.equal(project.url, url, "迁移应保留原始数据以供后台修复");
+  }
+
   const seededExternal = await prisma.project.findUnique({ where: { slug: "personal-website" } });
   assert.equal(seededExternal.status, "PUBLISHED");
   assert.equal(seededExternal.cardTarget, "EXTERNAL");
@@ -246,7 +261,7 @@ test("临时数据库可以迁移、重复 seed、备份并恢复全部作品", 
 
   const projects = await prisma.project.findMany({ orderBy: { slug: "asc" } });
   assert.deepEqual(projects.map((project) => project.slug), [
-    "legacy-external", "legacy-http-external", "legacy-internal", "new-client-write", "old-client-write", "open-source-tool", "personal-website", "side-project",
+    "legacy-external", "legacy-http-external", "legacy-internal", "legacy-no-host", "legacy-query-host", "legacy-spaced-url", "new-client-write", "old-client-write", "open-source-tool", "personal-website", "side-project",
   ]);
   assert.equal(await prisma.article.count(), 0, "seed 不发布虚构的文章内容");
   const incompleteArticle = await prisma.article.create({ data: { title: "未完成的草稿" } });
@@ -273,6 +288,33 @@ test("临时数据库可以迁移、重复 seed、备份并恢复全部作品", 
   await prisma.article.create({
     data: { slug: "draft-article", title: "未发布的文章", status: "DRAFT" },
   });
+  await prisma.project.createMany({
+    data: [
+      {
+        id: "published-internal-project",
+        slug: "published-internal-project",
+        name: "已发布作品",
+        description: "验证生产进程从数据库读取作品。",
+        type: "实验项目",
+        body: "## 项目正文\n\n跨语言界面下的项目内容。",
+        contentLanguage: "zh",
+        cardTarget: "INTERNAL",
+        status: "PUBLISHED",
+        firstPublishedAt: new Date("2026-11-19T00:00:00.000Z"),
+      },
+      {
+        id: "withdrawn-internal-project",
+        slug: "withdrawn-internal-project",
+        name: "已撤下内链作品",
+        description: "不应公开。",
+        cardTarget: "INTERNAL",
+        status: "WITHDRAWN",
+        firstPublishedAt: new Date("2026-11-18T00:00:00.000Z"),
+      },
+    ],
+  });
+  const databaseProjects = await prisma.project.findMany({ orderBy: { slug: "asc" } });
+
   const ownerId = `owner-${randomUUID()}`;
   const ownerSessionToken = randomUUID();
   const authSecret = "temporary-integration-secret-with-over-32-characters";
@@ -307,7 +349,7 @@ test("临时数据库可以迁移、重复 seed、备份并恢复全部作品", 
   assert.equal(actionArticle?.slug, actionResult.slug);
   assert.equal(actionArticle?.status, "PUBLISHED", "Server Action 应完成撤下后的再次发布");
   await assert.rejects(prisma.$queryRaw`SELECT pg_sleep(10)`, /timeout|timed out/i);
-  assert.equal((await prisma.project.count()), 8);
+  assert.equal((await prisma.project.count()), 11);
 
   mkdirSync(backupDirectory, { recursive: true });
   const oldDumps = ["20000101", "20010101", "20020101"].map((date) => `lawson_website-${date}T000000Z.dump`);
@@ -323,7 +365,7 @@ test("临时数据库可以迁移、重复 seed、备份并恢复全部作品", 
   restored = new Client({ connectionString: `postgresql://test:test@${address}/restored` });
   await restored.connect();
   const result = await restored.query('SELECT * FROM "Project" ORDER BY slug');
-  assert.deepEqual(result.rows, projects, "恢复后所有作品字段必须与备份前一致");
+  assert.deepEqual(result.rows, databaseProjects, "恢复后所有作品字段必须与备份前一致");
 
   await restored.end();
   restored = undefined;

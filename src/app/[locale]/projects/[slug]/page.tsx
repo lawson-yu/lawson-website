@@ -1,3 +1,4 @@
+import { connection } from "next/server";
 import type { Metadata } from "next";
 import { ArrowLeft, ArrowUpRight } from "lucide-react";
 import { getTranslations } from "next-intl/server";
@@ -10,6 +11,7 @@ import { ProjectMarkdown } from "./_components/project-markdown";
 type Props = { params: Promise<{ locale: string; slug: string }> };
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  await connection();
   const { slug } = await params;
   const project = await getPublishedProject(slug);
   if (!project) return {};
@@ -34,6 +36,7 @@ export default function ProjectDetailPage({ params }: Props) {
 }
 
 async function ProjectDetailContent({ params }: Props) {
+  await connection();
   const { locale, slug } = await params;
   const project = await getPublishedProject(slug);
   if (!project || !project.body || !project.contentLanguage) notFound();

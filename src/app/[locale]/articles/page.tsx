@@ -11,6 +11,7 @@ type ArticlesPageProps = {
 };
 
 export async function generateMetadata({ params }: ArticlesPageProps): Promise<Metadata> {
+  await connection();
   const { locale } = await params;
   const t = await getTranslations({ locale, namespace: "Articles" });
 
