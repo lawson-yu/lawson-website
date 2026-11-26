@@ -1,7 +1,10 @@
 import { Suspense } from "react";
 import Link from "next/link";
+import type { SiteSettingsDraft } from "@/lib/site-settings";
 import { requireSiteOwner } from "@/server/auth";
+import { getSiteSetting } from "@/server/site-settings";
 import { SignOutButton } from "@/components/public-site/public-authentication";
+import { SiteSettingsForm } from "./_components/site-settings-form";
 
 export default function AdminPage() {
   return (
@@ -13,6 +16,12 @@ export default function AdminPage() {
 
 async function AdminContent() {
   const session = await requireSiteOwner();
+  const siteSetting = await getSiteSetting();
+  const initialValues: SiteSettingsDraft = {
+    heroIntroduction: siteSetting?.heroIntroduction ?? "",
+    contactUrl: siteSetting?.contactUrl ?? "",
+    socialLinks: (siteSetting?.socialLinks ?? []) as unknown as SiteSettingsDraft["socialLinks"],
+  };
 
   return (
     <main className="admin-page">
@@ -24,9 +33,11 @@ async function AdminContent() {
         </div>
       </header>
       <section className="admin-page__content">
-        <h1>管理后台</h1>
-        <p>站长专用空间。管理文章与作品。</p>
-        <Link href="/admin/articles">管理文章</Link>
+        <h1>首页设置</h1>
+        <p>
+          维护首页介绍、主要联系入口和社交链接。<Link href="/admin/articles">管理文章</Link>
+        </p>
+        <SiteSettingsForm initialValues={initialValues} />
       </section>
     </main>
   );

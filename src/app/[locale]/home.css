@@ -82,6 +82,15 @@
   letter-spacing: .12em;
 }
 
+.home-hero__introduction {
+  max-width: 600px;
+  margin: 0 0 24px;
+  color: #fcfcfc;
+  font-size: clamp(16px, 1.8vw, 20px);
+  line-height: 1.65;
+  white-space: pre-line;
+}
+
 .home-hero__actions {
   display: flex;
   align-items: center;
@@ -229,6 +238,7 @@
   }
   .home-hero__content { width: 100%; }
   .home-hero__slogan { margin-bottom: 18px; font-size: 12px; }
+  .home-hero__introduction { margin-bottom: 20px; font-size: 16px; }
   .home-hero__actions { gap: 16px; }
   .home-hero__primary { flex: 1; }
   .home-hero__explore { right: 20px; bottom: 40px; }
