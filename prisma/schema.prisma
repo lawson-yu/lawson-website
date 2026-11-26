@@ -26,6 +26,14 @@ model Project {
   @@index([featured, createdAt])
 }
 
+model SiteSetting {
+  id               Int      @id @default(1)
+  heroIntroduction String?  @db.Text
+  contactUrl       String?
+  socialLinks      Json     @default("[]")
+  updatedAt        DateTime @updatedAt
+}
+
 model User {
   id            String    @id
   name          String

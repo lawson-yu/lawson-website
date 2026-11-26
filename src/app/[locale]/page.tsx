@@ -1,8 +1,12 @@
 import { ArrowUpRight } from "lucide-react";
 import { getTranslations } from "next-intl/server";
+import { Suspense } from "react";
 import { Link } from "@/i18n/navigation";
 import { HomeCharacter } from "./_components/home-character";
+import { getSiteSetting } from "@/server/site-settings";
 import "./home.css";
+
+export const instant = false;
 
 const workflow = [
   {
@@ -57,19 +61,13 @@ export default async function HomePage() {
     <main className="home-page">
       <section className="home-hero" id="top" aria-label="LAWSON">
         <HomeCharacter alt={t("characterAlt")} />
-        <div className="home-hero__content" data-home-content-slot>
-          <p className="home-hero__slogan">STAY CURIOUS. KEEP BUILDING.</p>
-          {/* #46 在此补入正式介绍与可配置的联系入口。 */}
-          <div className="home-hero__actions">
-            <Link className="home-hero__primary" href="/articles">
-              {t("readArticles")}
-              <ArrowUpRight aria-hidden="true" size={16} />
-            </Link>
-            <a className="home-hero__secondary" href="#contact">
-              {t("contact")}
-            </a>
-          </div>
-        </div>
+        <Suspense
+          fallback={
+            <div className="home-hero__content" data-home-content-slot />
+          }
+        >
+          <HomeHeroContent />
+        </Suspense>
         <p className="home-hero__explore" aria-hidden="true">
           {t("explore")}
         </p>
@@ -109,5 +107,34 @@ export default async function HomePage() {
         </ul>
       </section>
     </main>
+  );
+}
+
+async function HomeHeroContent() {
+  const [t, siteSetting] = await Promise.all([
+    getTranslations("Home"),
+    getSiteSetting(),
+  ]);
+
+  return (
+    <div className="home-hero__content" data-home-content-slot>
+      <p className="home-hero__slogan">STAY CURIOUS. KEEP BUILDING.</p>
+      {siteSetting?.heroIntroduction && (
+        <p className="home-hero__introduction">
+          {siteSetting.heroIntroduction}
+        </p>
+      )}
+      <div className="home-hero__actions">
+        <Link className="home-hero__primary" href="/articles">
+          {t("readArticles")}
+          <ArrowUpRight aria-hidden="true" size={16} />
+        </Link>
+        {siteSetting?.contactUrl && (
+          <a className="home-hero__secondary" href={siteSetting.contactUrl}>
+            {t("contact")}
+          </a>
+        )}
+      </div>
+    </div>
   );
 }

@@ -102,6 +102,41 @@ test("临时数据库可以迁移、重复 seed、备份并恢复全部作品", 
   await prisma.user.delete({ where: { id: authUserId } });
   assert.equal(await prisma.session.count({ where: { token: authSessionToken } }), 0);
 
+  const siteSetting = await prisma.siteSetting.upsert({
+    where: { id: 1 },
+    create: {
+      id: 1,
+      heroIntroduction: "  原文介绍\n保留换行  ",
+      contactUrl: "mailto:hello@example.com",
+      socialLinks: [
+        { name: "GitHub", url: "https://github.com/lawson", icon: "code" },
+        { name: "个人主页", url: "https://example.com", icon: "link" },
+      ],
+    },
+    update: {},
+  });
+  assert.equal(siteSetting.heroIntroduction, "  原文介绍\n保留换行  ");
+  assert.deepEqual(siteSetting.socialLinks, [
+    { name: "GitHub", url: "https://github.com/lawson", icon: "code" },
+    { name: "个人主页", url: "https://example.com", icon: "link" },
+  ]);
+  await prisma.siteSetting.update({
+    where: { id: 1 },
+    data: { socialLinks: [
+      { name: "个人主页", url: "https://example.com", icon: "link" },
+      { name: "GitHub", url: "https://github.com/lawson", icon: "code" },
+    ] },
+  });
+  assert.equal(await prisma.siteSetting.count(), 1);
+  assert.deepEqual(
+    (await prisma.siteSetting.findUnique({ where: { id: 1 } }))?.socialLinks,
+    [
+      { name: "个人主页", url: "https://example.com", icon: "link" },
+      { name: "GitHub", url: "https://github.com/lawson", icon: "code" },
+    ],
+  );
+  await assert.rejects(prisma.siteSetting.create({ data: { id: 2 } }));
+
   const projects = await prisma.project.findMany({ orderBy: { slug: "asc" } });
   assert.deepEqual(projects.map((project) => project.slug), [
     "open-source-tool", "personal-website", "side-project",
