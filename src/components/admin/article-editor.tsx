@@ -3,17 +3,30 @@
 import { useActionState, useRef } from "react";
 import type { FormEvent } from "react";
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import type { Article, Tag } from "@/generated/prisma/client";
 import { CoverImageField, MarkdownImageButton } from "@/components/admin/media-uploader";
+import { AdminIntlProvider } from "@/components/admin/admin-intl-provider";
 import { saveArticle, type ArticleActionState } from "@/server/article-actions";
 
 const initialState: ArticleActionState = { revision: 0, values: {} };
 
-export function ArticleEditor({ article, tags }: {
+type ArticleEditorProps = {
   article?: Article & { tags: Tag[] };
   tags: Array<Pick<Tag, "id" | "name">>;
-}) {
+};
+
+export function ArticleEditor(props: ArticleEditorProps) {
+  return (
+    <AdminIntlProvider>
+      <ArticleEditorForm {...props} />
+    </AdminIntlProvider>
+  );
+}
+
+function ArticleEditorForm({ article, tags }: ArticleEditorProps) {
   const [state, action, pending] = useActionState(saveArticle, initialState);
+  const t = useTranslations("Admin");
   const bodyRef = useRef<HTMLTextAreaElement>(null);
   const values = state.values;
   const selectedTagIds = values.tagIds ?? article?.tags.map(({ id }) => id) ?? [];
@@ -27,7 +40,7 @@ export function ArticleEditor({ article, tags }: {
 
     const slug = event.currentTarget.elements.namedItem("slug");
     const confirmation = submitter.value === "publish" && !slugIsFixed && slug instanceof HTMLInputElement
-      ? `确认首次发布到 /articles/${slug.value.trim() || "…"} 吗？`
+      ? t("confirmFirstPublish", { slug: slug.value.trim() || "…" })
       : submitter.dataset.confirm;
     if (!confirmation) return;
 
@@ -53,7 +66,7 @@ export function ArticleEditor({ article, tags }: {
       )}
 
       <div className="article-editor__field">
-        <label htmlFor="article-title">标题</label>
+        <label htmlFor="article-title">{t("articleTitle")}</label>
         <input
           id="article-title"
           name="title"
@@ -63,7 +76,7 @@ export function ArticleEditor({ article, tags }: {
       </div>
 
       <div className="article-editor__field">
-        <label htmlFor="article-excerpt">摘要</label>
+        <label htmlFor="article-excerpt">{t("articleExcerpt")}</label>
         <textarea
           id="article-excerpt"
           name="excerpt"
@@ -74,7 +87,7 @@ export function ArticleEditor({ article, tags }: {
 
       <div className="article-editor__field article-editor__field--tags">
         <fieldset className="article-editor__tags">
-          <legend>文章标签</legend>
+          <legend>{t("articleTags")}</legend>
           {tags.length ? (
             <div className="article-editor__tag-options">
               {tags.map((tag) => (
@@ -90,26 +103,26 @@ export function ArticleEditor({ article, tags }: {
               ))}
             </div>
           ) : (
-            <p>还没有标签。<Link href="/admin/articles/tags">先创建标签</Link>后即可添加到文章。</p>
+            <p>{t("noArticleTags")}<Link href="/admin/articles/tags">{t("createArticleTag")}</Link>{t("articleTagsSuffix")}</p>
           )}
         </fieldset>
       </div>
 
       <div className="article-editor__field article-editor__field--compact">
-        <label htmlFor="article-language">正文语言</label>
+        <label htmlFor="article-language">{t("bodyLanguage")}</label>
         <select
           id="article-language"
           name="bodyLanguage"
           defaultValue={values.bodyLanguage ?? article?.bodyLanguage ?? ""}
         >
-          <option value="">请选择</option>
-          <option value="zh">简体中文</option>
-          <option value="en">English</option>
+          <option value="">{t("chooseValue")}</option>
+          <option value="zh">{t("simplifiedChinese")}</option>
+          <option value="en">{t("englishLanguage")}</option>
         </select>
       </div>
 
       <div className="article-editor__field article-editor__field--compact">
-        <label htmlFor="article-slug">文章网址</label>
+        <label htmlFor="article-slug">{t("articleSlug")}</label>
         <div className="article-editor__slug">
           <span aria-hidden="true">/articles/</span>
           <input
@@ -122,7 +135,7 @@ export function ArticleEditor({ article, tags }: {
           />
         </div>
         <p id="article-slug-help">
-          {slugIsFixed ? "首次发布后网址固定。" : "发布前确认；只允许小写字母、数字和连字符。"}
+          {slugIsFixed ? t("slugFixed") : t("slugWarning")}
         </p>
       </div>
 
@@ -130,14 +143,14 @@ export function ArticleEditor({ article, tags }: {
         <CoverImageField
           id="article-cover"
           name="coverImageKey"
-          label="封面图片"
+          label={t("coverImage")}
           initialValue={values.coverImageKey ?? article?.coverImageKey ?? ""}
         />
       </div>
 
       <div className="article-editor__field">
         <div className="article-editor__label-row">
-          <label htmlFor="article-body">正文 Markdown</label>
+          <label htmlFor="article-body">{t("articleBody")}</label>
           <MarkdownImageButton textareaRef={bodyRef} />
         </div>
         <textarea
@@ -155,10 +168,10 @@ export function ArticleEditor({ article, tags }: {
           type="submit"
           name="intent"
           value="save"
-          data-confirm={isPublished ? "保存后文章将立即更新到公开页面。确定保存吗？" : undefined}
+          data-confirm={isPublished ? t("publishedArticleConfirmation") : undefined}
           disabled={pending}
         >
-          {pending ? "保存中…" : isPublished ? "保存并立即公开" : "保存草稿"}
+          {pending ? t("saving") : isPublished ? t("saveAndPublish") : t("saveDraft")}
         </button>
         {!isPublished && (
           <button
@@ -167,11 +180,11 @@ export function ArticleEditor({ article, tags }: {
             name="intent"
             value="publish"
             data-confirm={isWithdrawn
-              ? `确认重新发布到 /articles/${article?.slug} 吗？`
-              : `确认首次发布到 /articles/${values.slug ?? article?.slug ?? "…"} 吗？`}
+              ? t("confirmRepublish", { slug: article?.slug ?? "" })
+              : t("confirmFirstPublish", { slug: values.slug ?? article?.slug ?? "…" })}
             disabled={pending}
           >
-            {isWithdrawn ? "重新发布" : "发布文章"}
+            {isWithdrawn ? t("republish") : t("publishArticle")}
           </button>
         )}
         {isPublished && (
@@ -180,10 +193,10 @@ export function ArticleEditor({ article, tags }: {
             type="submit"
             name="intent"
             value="withdraw"
-            data-confirm="撤下后文章会从公开列表和收录入口移除。确定撤下吗？"
+            data-confirm={t("withdrawArticleConfirmation")}
             disabled={pending}
           >
-            撤下文章
+            {t("withdrawArticle")}
           </button>
         )}
       </div>

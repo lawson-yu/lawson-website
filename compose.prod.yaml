@@ -18,6 +18,8 @@ services:
     build:
       context: .
       target: runner
+      secrets:
+        - next_server_actions_encryption_key
     restart: unless-stopped
     env_file:
       - .env.production
@@ -67,6 +69,10 @@ services:
     depends_on:
       app:
         condition: service_healthy
+
+secrets:
+  next_server_actions_encryption_key:
+    environment: NEXT_SERVER_ACTIONS_ENCRYPTION_KEY
 
 volumes:
   postgres-data:

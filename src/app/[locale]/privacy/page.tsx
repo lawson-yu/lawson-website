@@ -1,7 +1,9 @@
+import { Suspense } from "react";
 import type { Metadata } from "next";
 import { getTranslations } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
 import { getSiteSetting } from "@/server/site-settings";
+import { VISITOR_RECORD_RETENTION_MONTHS } from "@/lib/visitor-retention";
 
 type PrivacyPageProps = {
   params: Promise<{ locale: string }>;
@@ -26,7 +28,15 @@ export async function generateMetadata({
   };
 }
 
-export default async function PrivacyPage({ params }: PrivacyPageProps) {
+export default function PrivacyPage({ params }: PrivacyPageProps) {
+  return (
+    <Suspense fallback={<main className="privacy-page" aria-busy="true" />}>
+      <PrivacyPageContent params={params} />
+    </Suspense>
+  );
+}
+
+async function PrivacyPageContent({ params }: PrivacyPageProps) {
   const { locale } = await params;
   const [t, siteSetting] = await Promise.all([
     getTranslations({ locale, namespace: "Privacy" }),
@@ -56,7 +66,7 @@ export default async function PrivacyPage({ params }: PrivacyPageProps) {
 
         <section className="privacy-page__section">
           <h2>{t("retentionTitle")}</h2>
-          <p>{t("retentionBody")}</p>
+          <p>{t("retentionBody", { months: VISITOR_RECORD_RETENTION_MONTHS })}</p>
         </section>
 
         <section className="privacy-page__section">

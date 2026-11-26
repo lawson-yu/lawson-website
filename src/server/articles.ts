@@ -21,45 +21,58 @@ export async function getPublishedArticles(
   const prisma = getPrisma();
   const normalizedQuery = normalizeSearchQuery(query);
   const safeLimit = Math.min(Math.max(limit, ARTICLE_BATCH_SIZE), MAX_ARTICLE_LIMIT);
+  const where = {
+    status: "PUBLISHED" as const,
+    slug: { not: null },
+    firstPublishedAt: { not: null },
+    ...(tagId ? { tags: { some: { id: tagId } } } : {}),
+  };
+  const orderBy = [{ firstPublishedAt: "desc" as const }, { id: "desc" as const }];
+  const take = safeLimit + 1;
 
-  if (normalizedQuery) {
-    // 历史已发布文章若尚未生成搜索文本，首次检索时同步回填以保证可检索
-    const missing = await prisma.article.findMany({
-      where: {
-        status: "PUBLISHED",
-        slug: { not: null },
-        firstPublishedAt: { not: null },
-        searchText: "",
-      },
-      select: { id: true, title: true, excerpt: true, body: true },
-    });
-    if (missing.length > 0) {
-      await Promise.all(
-        missing.map((article) => {
-          const text = buildArticleSearchText(article);
-          if (!text) return null;
-          return prisma.article.update({
-            where: { id: article.id },
-            data: { searchText: text },
-          });
-        }),
-      );
-    }
+  if (!normalizedQuery) {
+    return prisma.article.findMany({ where, orderBy, take, include: { tags: true } });
   }
 
-  return prisma.article.findMany({
+  const [indexedArticles, legacyArticles] = await Promise.all([
+    prisma.article.findMany({
+      where: { ...where, searchText: { contains: normalizedQuery, mode: "insensitive" } },
+      orderBy,
+      take,
+      include: { tags: true },
+    }),
+    prisma.article.findMany({
+      where: { ...where, searchText: "" },
+      include: { tags: true },
+    }),
+  ]);
+
+  // shortcut: legacy articles are scanned for each new query; add a deploy-time backfill if volume makes this expensive.
+  return [
+    ...indexedArticles,
+    ...legacyArticles.filter((article) =>
+      buildArticleSearchText(article).toLowerCase().includes(normalizedQuery.toLowerCase()),
+    ),
+  ]
+    .sort((left, right) =>
+      right.firstPublishedAt!.getTime() - left.firstPublishedAt!.getTime() ||
+      (left.id > right.id ? -1 : left.id < right.id ? 1 : 0),
+    )
+    .slice(0, take);
+}
+
+export async function getPublishedArticleSitemapEntries() {
+  "use cache";
+  cacheTag("articles");
+
+  return getPrisma().article.findMany({
     where: {
       status: "PUBLISHED",
       slug: { not: null },
       firstPublishedAt: { not: null },
-      ...(tagId ? { tags: { some: { id: tagId } } } : {}),
-      ...(normalizedQuery
-        ? { searchText: { contains: normalizedQuery, mode: "insensitive" } }
-        : {}),
     },
-    orderBy: [{ firstPublishedAt: "desc" }, { id: "desc" }],
-    take: safeLimit + 1,
-    include: { tags: true },
+    select: { slug: true, bodyLanguage: true, updatedAt: true },
+    orderBy: [{ firstPublishedAt: "desc" }],
   });
 }
 
@@ -145,19 +158,6 @@ export async function getAdminArticle(id: string) {
   cacheTag("articles", `article-id-${id}`);
 
   return getPrisma().article.findUnique({ where: { id }, include: { tags: true } });
-}
-
-export async function isPublishedArticleSlug(slug: string) {
-  const article = await getPrisma().article.findFirst({
-    where: {
-      slug,
-      status: "PUBLISHED",
-      firstPublishedAt: { not: null },
-    },
-    select: { id: true },
-  });
-
-  return Boolean(article);
 }
 
 export function getArticleImageUrl(key: string | null | undefined) {

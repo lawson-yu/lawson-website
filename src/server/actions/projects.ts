@@ -2,6 +2,9 @@
 
 import { randomUUID } from "node:crypto";
 import { updateTag } from "next/cache";
+import { getTranslations } from "next-intl/server";
+import { isContentLanguage } from "@/lib/content-language";
+import { isValidSlug } from "@/lib/slug";
 import { getFeaturedRankUpdates, type FeaturedIntent } from "@/lib/featured-rank";
 import { ProjectCardTarget } from "@/generated/prisma/client";
 import { normalizeSubmittedMediaKey } from "@/lib/media-url";
@@ -27,40 +30,58 @@ function isWebUrl(value: string) {
   }
 }
 
-function publicationErrors(project: {
-  name: string;
-  description: string;
-  type: string;
-  slug: string;
-  cardTarget: "INTERNAL" | "EXTERNAL";
-  url: string | null;
-  body: string | null;
-  contentLanguage: string | null;
-}) {
+async function publicationLabels() {
+  const t = await getTranslations({ locale: "zh", namespace: "Admin" });
+  return {
+    name: t("articleTitle"),
+    description: t("projectDescription"),
+    type: t("projectType"),
+    validSlug: t("validProjectSlug"),
+    validExternalCardTarget: t("validExternalCardTarget"),
+    body: t("projectBody"),
+    bodyLanguage: t("bodyLanguage"),
+    validExternalUrl: t("validExternalUrl"),
+  };
+}
+
+function publicationErrors(
+  project: {
+    name: string;
+    description: string;
+    type: string;
+    slug: string;
+    cardTarget: "INTERNAL" | "EXTERNAL";
+    url: string | null;
+    body: string | null;
+    contentLanguage: string | null;
+  },
+  labels: { name: string; description: string; type: string; validSlug: string; validExternalCardTarget: string; body: string; bodyLanguage: string; validExternalUrl: string },
+) {
   const errors: string[] = [];
-  if (!project.name.trim()) errors.push("标题");
-  if (!project.description.trim()) errors.push("简介");
-  if (!project.type.trim()) errors.push("类型");
-  if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(project.slug)) errors.push("有效的作品地址");
+  if (!project.name.trim()) errors.push(labels.name);
+  if (!project.description.trim()) errors.push(labels.description);
+  if (!project.type.trim()) errors.push(labels.type);
+  if (!isValidSlug(project.slug)) errors.push(labels.validSlug);
 
   if (project.cardTarget === "EXTERNAL") {
-    if (!project.url || !isWebUrl(project.url)) errors.push("有效的外部卡片入口");
+    if (!project.url || !isWebUrl(project.url)) errors.push(labels.validExternalCardTarget);
   } else {
-    if (!project.body?.trim()) errors.push("项目正文");
-    if (project.contentLanguage !== "zh" && project.contentLanguage !== "en") {
-      errors.push("正文语言");
+    if (!project.body?.trim()) errors.push(labels.body);
+    if (!isContentLanguage(project.contentLanguage)) {
+      errors.push(labels.bodyLanguage);
     }
-    if (project.url && !isWebUrl(project.url)) errors.push("有效的外部访问入口");
+    if (project.url && !isWebUrl(project.url)) errors.push(labels.validExternalUrl);
   }
 
   return errors;
 }
 
-function projectActionError(error: unknown): ProjectActionState {
+async function projectActionError(error: unknown): Promise<ProjectActionState> {
+  const t = await getTranslations({ locale: "zh", namespace: "AdminActions" });
   if (typeof error === "object" && error !== null && "code" in error && error.code === "P2002") {
-    return { kind: "error", message: "这个作品地址已被使用，请更换后再保存或发布。" };
+    return { kind: "error", message: t("projectSlugTaken") };
   }
-  return { kind: "error", message: "保存失败，请稍后重试。" };
+  return { kind: "error", message: t("projectSaveFailed") };
 }
 
 export async function saveProject(
@@ -68,6 +89,8 @@ export async function saveProject(
   formData: FormData,
 ): Promise<ProjectActionState> {
   await requireSiteOwner();
+  const t = await getTranslations({ locale: "zh", namespace: "AdminActions" });
+  const labels = await publicationLabels();
 
   const id = readText(formData, "id").trim();
   const rawCardTarget = readText(formData, "cardTarget");
@@ -77,17 +100,17 @@ export async function saveProject(
       ? ProjectCardTarget.EXTERNAL
       : null;
   if (!cardTarget) {
-    return { kind: "error", message: "请选择有效的卡片主入口。" };
+    return { kind: "error", message: t("projectCardTargetInvalid") };
   }
 
   const prisma = getPrisma();
   const existing = id ? await prisma.project.findUnique({ where: { id } }) : null;
-  if (id && !existing) return { kind: "error", message: "找不到要编辑的作品，请刷新后重试。" };
+  if (id && !existing) return { kind: "error", message: t("projectNotFound") };
 
   const rawCoverImage = readText(formData, "coverImage").trim();
   const normalizedCoverImage = normalizeSubmittedMediaKey(rawCoverImage);
   if (rawCoverImage && !normalizedCoverImage) {
-    return { kind: "error", message: "封面路径格式无效，请通过上传按钮上传或填写合法的相对媒体路径。" };
+    return { kind: "error", message: t("invalidCoverPath") };
   }
 
   const submittedSlug = readText(formData, "slug").trim();
@@ -110,9 +133,9 @@ export async function saveProject(
     const errors = publicationErrors({
       ...data,
       cardTarget: data.cardTarget as "INTERNAL" | "EXTERNAL",
-    });
+    }, labels);
     if (errors.length) {
-      return { kind: "error", message: `更新公开作品前请补齐：${errors.join("、")}。` };
+      return { kind: "error", message: t("projectMissingFields", { fields: errors.join("、") }) };
     }
   }
 
@@ -129,7 +152,7 @@ export async function saveProject(
       await prisma.project.create({ data });
     }
     updateTag("projects");
-    return { kind: "success", message: "作品草稿已保存。" };
+    return { kind: "success", message: t("projectDraftSaved") };
   } catch (error) {
     return projectActionError(error);
   }
@@ -140,27 +163,29 @@ export async function publishProject(
   formData: FormData,
 ): Promise<ProjectActionState> {
   await requireSiteOwner();
+  const t = await getTranslations({ locale: "zh", namespace: "AdminActions" });
+  const labels = await publicationLabels();
 
   const id = readText(formData, "id").trim();
   const prisma = getPrisma();
   const project = await prisma.project.findUnique({ where: { id } });
-  if (!project) return { kind: "error", message: "找不到要发布的作品，请刷新后重试。" };
+  if (!project) return { kind: "error", message: t("projectPublishNotFound") };
 
-  const errors = publicationErrors(project);
+  const errors = publicationErrors(project, labels);
   if (errors.length) {
-    return { kind: "error", message: `发布前请补齐：${errors.join("、")}。` };
+    return { kind: "error", message: t("projectPublishMissingFields", { fields: errors.join("、") }) };
   }
 
   const conflict = await prisma.project.findFirst({
     where: { slug: project.slug, id: { not: project.id } },
     select: { id: true },
   });
-  if (conflict) return { kind: "error", message: "这个作品地址已被使用，请更换后再发布。" };
+  if (conflict) return { kind: "error", message: t("projectRepublishSlugTaken") };
 
   try {
     await prisma.$transaction(async (transaction) => {
       const current = await transaction.project.findUnique({ where: { id: project.id } });
-      if (!current) throw new Error("作品已被删除");
+      if (!current) throw new Error("Project was deleted");
       if (current.firstPublishedAt) {
         await transaction.project.update({
           where: { id: current.id },
@@ -185,7 +210,7 @@ export async function publishProject(
       }
     });
     updateTag("projects");
-    return { kind: "success", message: "作品已发布，首次发布时间和地址已固定。" };
+    return { kind: "success", message: t("projectPublished") };
   } catch (error) {
     return projectActionError(error);
   }
@@ -196,13 +221,14 @@ export async function withdrawProject(
   formData: FormData,
 ): Promise<ProjectActionState> {
   await requireSiteOwner();
+  const t = await getTranslations({ locale: "zh", namespace: "AdminActions" });
 
   const id = readText(formData, "id").trim();
   const prisma = getPrisma();
   const project = await prisma.project.findUnique({ where: { id } });
-  if (!project) return { kind: "error", message: "找不到要撤下的作品，请刷新后重试。" };
+  if (!project) return { kind: "error", message: t("projectWithdrawNotFound") };
   if (project.status !== "PUBLISHED") {
-    return { kind: "error", message: "只有已发布作品可以撤下。" };
+    return { kind: "error", message: t("projectWithdrawOnlyPublished") };
   }
 
   await prisma.project.update({
@@ -210,7 +236,7 @@ export async function withdrawProject(
     data: { status: "WITHDRAWN" },
   });
   updateTag("projects");
-  return { kind: "success", message: "作品已撤下，公开入口已关闭。" };
+  return { kind: "success", message: t("projectWithdrawn") };
 }
 
 export async function updateFeaturedProject(formData: FormData) {

@@ -62,7 +62,7 @@ export function validateSiteSettings(
   const errors: { contactUrl?: string; socialLinks?: string } = {};
 
   if (draft.contactUrl.trim() && !isContactUrl(draft.contactUrl)) {
-    errors.contactUrl = "请输入 mailto: 邮箱地址或 HTTPS 地址。";
+    errors.contactUrl = "contactUrlInvalid";
   }
 
   if (
@@ -73,7 +73,7 @@ export function validateSiteSettings(
         !SOCIAL_ICON_OPTIONS.includes(link.icon as SocialIcon),
     )
   ) {
-    errors.socialLinks = "每条社交链接都需要名称、HTTPS 地址和预设图标。";
+    errors.socialLinks = "socialLinksInvalid";
   }
 
   if (Object.keys(errors).length > 0) return { ok: false, errors };

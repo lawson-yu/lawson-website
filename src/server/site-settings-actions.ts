@@ -1,6 +1,7 @@
 "use server";
 
 import { updateTag } from "next/cache";
+import { getTranslations } from "next-intl/server";
 import type { Prisma } from "@/generated/prisma/client";
 import {
   validateSiteSettings,
@@ -52,12 +53,13 @@ export async function saveSiteSettings(
   formData: FormData,
 ): Promise<SiteSettingsActionState> {
   await requireSiteOwner();
+  const t = await getTranslations({ locale: "zh", namespace: "AdminActions" });
 
   const draft = readDraft(formData);
   if (!draft) {
     return {
       status: "error",
-      message: "表单内容无法读取，请检查后重试。",
+      message: t("siteSettingsParseError"),
     };
   }
 
@@ -65,8 +67,11 @@ export async function saveSiteSettings(
   if (!validation.ok) {
     return {
       status: "error",
-      message: "请检查标记的字段。",
-      errors: validation.errors,
+      message: t("siteSettingsValidationError"),
+      errors: {
+        contactUrl: validation.errors.contactUrl ? t("siteContactUrlInvalid") : undefined,
+        socialLinks: validation.errors.socialLinks ? t("siteSocialLinksInvalid") : undefined,
+      },
       values: draft,
     };
   }
@@ -86,11 +91,11 @@ export async function saveSiteSettings(
   } catch {
     return {
       status: "error",
-      message: "保存失败，请稍后重试。",
+      message: t("siteSettingsSaveError"),
       values: draft,
     };
   }
 
   updateTag(SITE_SETTINGS_CACHE_TAG);
-  return { status: "success", message: "已保存，首页内容已更新。" };
+  return { status: "success", message: t("siteSettingsSaveSuccess") };
 }

@@ -3,6 +3,7 @@ import {
   DEFAULT_OG_IMAGE_PATH,
   resolveAbsoluteMediaUrl,
 } from "@/lib/media-url";
+import { getContentLocale } from "@/lib/content-language";
 
 export const OG_IMAGE_WIDTH = 1200;
 export const OG_IMAGE_HEIGHT = 630;
@@ -41,7 +42,7 @@ export function buildDetailMetadata(input: {
   mediaBaseUrl?: string;
 }): Metadata {
   const siteOrigin = getSiteOrigin(input.siteOrigin);
-  const bodyLocale: "zh" | "en" = input.bodyLanguage === "en" ? "en" : "zh";
+  const bodyLocale = getContentLocale(input.bodyLanguage);
   const canonical = `/${bodyLocale}/${input.section}/${input.slug}`;
   const coverUrl = resolveAbsoluteMediaUrl(input.coverImageKey, {
     siteOrigin,

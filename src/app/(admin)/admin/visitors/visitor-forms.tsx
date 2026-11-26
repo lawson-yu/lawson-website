@@ -1,6 +1,9 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { useActionState } from "react";
+import { AdminIntlProvider } from "@/components/admin/admin-intl-provider";
+import { VISITOR_RECORD_RETENTION_MONTHS } from "@/lib/visitor-retention";
 import {
   deleteVisitorAccountAction,
   pruneExpiredVisitorRecordsAction,
@@ -19,16 +22,34 @@ function Notice({ state }: { state: VisitorAdminActionState }) {
 }
 
 export function PruneVisitorRecordsForm() {
+  return (
+    <AdminIntlProvider>
+      <PruneVisitorRecordsFormContent />
+    </AdminIntlProvider>
+  );
+}
+
+function PruneVisitorRecordsFormContent() {
+  const t = useTranslations("Admin");
   const [state, action, pending] = useActionState(pruneExpiredVisitorRecordsAction, idle);
   return (
     <form action={action} data-action="prune-visitor-records" className="admin-visitors__prune">
-      <button type="submit" disabled={pending}>清理 24 个月前的访问记录</button>
+      <button type="submit" disabled={pending}>{t("pruneVisitorRecords", { months: VISITOR_RECORD_RETENTION_MONTHS })}</button>
       <Notice state={state} />
     </form>
   );
 }
 
 export function DeleteVisitorForm({ visitorId, email }: { visitorId: string; email: string }) {
+  return (
+    <AdminIntlProvider>
+      <DeleteVisitorFormContent visitorId={visitorId} email={email} />
+    </AdminIntlProvider>
+  );
+}
+
+function DeleteVisitorFormContent({ visitorId, email }: { visitorId: string; email: string }) {
+  const t = useTranslations("Admin");
   const [state, action, pending] = useActionState(deleteVisitorAccountAction, idle);
   return (
     <form
@@ -36,14 +57,14 @@ export function DeleteVisitorForm({ visitorId, email }: { visitorId: string; ema
       data-action="delete-visitor"
       className="admin-visitor__delete"
       onSubmit={(event) => {
-        if (!window.confirm(`确认删除 ${email} 及其全部登录和访问记录？此操作无法撤销。`)) {
+        if (!window.confirm(t("confirmDeleteVisitor", { email }))) {
           event.preventDefault();
         }
       }}
     >
       <input type="hidden" name="visitorId" value={visitorId} />
-      <button type="submit" disabled={pending} aria-label={`删除访客 ${email}`}>
-        删除账号及记录
+      <button type="submit" disabled={pending} aria-label={t("deleteVisitorLabel", { email })}>
+        {t("deleteVisitor")}
       </button>
       <Notice state={state} />
     </form>
