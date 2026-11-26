@@ -2,6 +2,7 @@ import { connection } from "next/server";
 import type { Metadata } from "next";
 import { getTranslations } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
+import { Suspense } from "react";
 import {
   ARTICLE_BATCH_SIZE,
   MAX_ARTICLE_LIMIT,
@@ -38,7 +39,15 @@ export async function generateMetadata({ params, searchParams }: ArticlesPagePro
   });
 }
 
-export default async function ArticlesPage({ params, searchParams }: ArticlesPageProps) {
+export default function ArticlesPage(props: ArticlesPageProps) {
+  return (
+    <Suspense fallback={<main className="articles-index" aria-busy="true" />}>
+      <ArticlesPageContent {...props} />
+    </Suspense>
+  );
+}
+
+async function ArticlesPageContent({ params, searchParams }: ArticlesPageProps) {
   await connection();
   const [
     { locale },

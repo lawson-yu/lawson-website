@@ -1,6 +1,6 @@
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { resolveMediaUrl } from "@/lib/media-url";
+import { MarkdownImage } from "@/components/public-site/markdown-image";
 
 function safeHref(value: string | undefined) {
   const href = (value ?? "").trim();
@@ -8,7 +8,7 @@ function safeHref(value: string | undefined) {
   return null;
 }
 
-export function ProjectMarkdown({ source }: { source: string }) {
+export function ProjectMarkdown({ source, codeScrollLabel }: { source: string; codeScrollLabel: string }) {
   return (
     <div className="project-markdown">
       <ReactMarkdown
@@ -20,16 +20,11 @@ export function ProjectMarkdown({ source }: { source: string }) {
             return safe ? <a href={safe}>{children}</a> : <>{children}</>;
           },
           pre: ({ children }) => (
-            <pre tabIndex={0} aria-label="代码，可横向滚动">
+            <pre tabIndex={0} aria-label={codeScrollLabel}>
               {children}
             </pre>
           ),
-          img: ({ src, alt }) => {
-            if (typeof src !== "string") return null;
-            const imageSrc = resolveMediaUrl(src);
-            // eslint-disable-next-line @next/next/no-img-element
-            return imageSrc ? <img src={imageSrc} alt={alt ?? ""} loading="lazy" /> : null;
-          },
+          img: MarkdownImage,
         }}
       >
         {source}

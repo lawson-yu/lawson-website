@@ -20,7 +20,7 @@ FROM base AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-RUN pnpm build
+RUN --mount=type=secret,id=next_server_actions_encryption_key,required=true NEXT_SERVER_ACTIONS_ENCRYPTION_KEY="$(cat /run/secrets/next_server_actions_encryption_key)" pnpm build
 
 FROM base AS runner
 WORKDIR /app

@@ -1,9 +1,11 @@
 "use client";
 
 import { useActionState, useState } from "react";
+import { useTranslations } from "next-intl";
 import { ArrowDown, ArrowUp, Plus, Trash2 } from "lucide-react";
+import { AdminIntlProvider } from "@/components/admin/admin-intl-provider";
 import { SOCIAL_ICON_OPTIONS, type SiteSettingsDraft } from "@/lib/site-settings";
-import { saveSiteSettings, type SiteSettingsActionState } from "../actions";
+import { saveSiteSettings, type SiteSettingsActionState } from "@/server/site-settings-actions";
 
 interface SiteSettingsFormProps {
   initialValues: SiteSettingsDraft;
@@ -19,14 +21,23 @@ interface EditableSocialLink {
 const initialActionState: SiteSettingsActionState = { status: "idle" };
 
 const socialIconLabels = {
-  code: "代码",
-  work: "工作",
-  camera: "相机",
-  video: "视频",
-  link: "通用链接",
+  code: "socialIconCode",
+  work: "socialIconWork",
+  camera: "socialIconCamera",
+  video: "socialIconVideo",
+  link: "socialIconLink",
 } satisfies Record<(typeof SOCIAL_ICON_OPTIONS)[number], string>;
 
-export function SiteSettingsForm({ initialValues }: SiteSettingsFormProps) {
+export function SiteSettingsForm(props: SiteSettingsFormProps) {
+  return (
+    <AdminIntlProvider>
+      <SiteSettingsFormContent {...props} />
+    </AdminIntlProvider>
+  );
+}
+
+function SiteSettingsFormContent({ initialValues }: SiteSettingsFormProps) {
+  const t = useTranslations("Admin");
   const [state, formAction, isPending] = useActionState(
     saveSiteSettings,
     initialActionState,
@@ -43,9 +54,9 @@ export function SiteSettingsForm({ initialValues }: SiteSettingsFormProps) {
   );
 
   const missingFields = [
-    !heroIntroduction.trim() ? "Hero 介绍" : null,
-    !contactUrl.trim() ? "主要联系入口" : null,
-    socialLinks.length === 0 ? "社交链接" : null,
+    !heroIntroduction.trim() ? t("homeIntroductionLabel") : null,
+    !contactUrl.trim() ? t("contactLinkLabel") : null,
+    socialLinks.length === 0 ? t("socialLinksLabel") : null,
   ].filter((field): field is string => field !== null);
 
   function updateSocialLink(
@@ -73,12 +84,12 @@ export function SiteSettingsForm({ initialValues }: SiteSettingsFormProps) {
     <form action={formAction} className="admin-settings-form">
       {missingFields.length > 0 && (
         <p className="admin-settings-form__notice" role="status">
-          尚未填写：{missingFields.join("、")}。公开首页会省略这些内容，首发前请补齐介绍和联系入口。
+          {t("homeMissingFields", { fields: missingFields.join("、") })}
         </p>
       )}
 
       <label className="admin-settings-form__field" htmlFor="hero-introduction">
-        Hero 介绍
+        {t("homeIntroductionLabel")}
         <textarea
           id="hero-introduction"
           name="heroIntroduction"
@@ -87,12 +98,12 @@ export function SiteSettingsForm({ initialValues }: SiteSettingsFormProps) {
           aria-describedby="hero-introduction-help"
         />
         <small id="hero-introduction-help">
-          中英文界面共用这段原文；留空时首页不显示介绍。
+          {t("homeIntroductionHelp")}
         </small>
       </label>
 
       <label className="admin-settings-form__field" htmlFor="contact-url">
-        主要联系入口
+        {t("contactLinkLabel")}
         <input
           id="contact-url"
           name="contactUrl"
@@ -105,7 +116,7 @@ export function SiteSettingsForm({ initialValues }: SiteSettingsFormProps) {
             state.errors?.contactUrl ? "contact-url-error" : "contact-url-help"
           }
         />
-        <small id="contact-url-help">支持 mailto: 邮箱地址或 HTTPS 地址。</small>
+        <small id="contact-url-help">{t("contactLinkHelp")}</small>
         {state.errors?.contactUrl && (
           <small className="admin-settings-form__error" id="contact-url-error">
             {state.errors.contactUrl}
@@ -114,8 +125,8 @@ export function SiteSettingsForm({ initialValues }: SiteSettingsFormProps) {
       </label>
 
       <section className="admin-settings-form__section" aria-labelledby="social-links-title">
-        <h2 id="social-links-title">社交链接</h2>
-        <p>可调整顺序或移除；图标不必与链接名称对应。</p>
+        <h2 id="social-links-title">{t("socialLinksLabel")}</h2>
+        <p>{t("socialLinksHelp")}</p>
         <input
           type="hidden"
           name="socialLinks"
@@ -126,30 +137,30 @@ export function SiteSettingsForm({ initialValues }: SiteSettingsFormProps) {
         {socialLinks.map((link, index) => (
           <div className="admin-social-link" key={link.id}>
             <label className="admin-social-link__field" htmlFor={`social-name-${link.id}`}>
-              名称
+              {t("socialLinkName")}
               <input
                 id={`social-name-${link.id}`}
                 value={link.name}
                 onChange={(event) =>
                   updateSocialLink(link.id, "name", event.target.value)
                 }
-                aria-label={`第 ${index + 1} 条社交链接名称`}
+                aria-label={t("socialLinkNameLabel", { index: index + 1 })}
                 aria-invalid={Boolean(state.errors?.socialLinks)}
               />
             </label>
             <label className="admin-social-link__field" htmlFor={`social-icon-${link.id}`}>
-              图标
+              {t("socialLinkIcon")}
               <select
                 id={`social-icon-${link.id}`}
                 value={link.icon}
                 onChange={(event) =>
                   updateSocialLink(link.id, "icon", event.target.value)
                 }
-                aria-label={`第 ${index + 1} 条社交链接图标`}
+                aria-label={t("socialLinkIconLabel", { index: index + 1 })}
               >
                 {SOCIAL_ICON_OPTIONS.map((icon) => (
                   <option key={icon} value={icon}>
-                    {socialIconLabels[icon]}
+                    {t(socialIconLabels[icon])}
                   </option>
                 ))}
               </select>
@@ -157,7 +168,7 @@ export function SiteSettingsForm({ initialValues }: SiteSettingsFormProps) {
             <div className="admin-social-link__actions">
               <button
                 type="button"
-                aria-label={`将第 ${index + 1} 条社交链接上移`}
+                aria-label={t("moveSocialLinkUp", { index: index + 1 })}
                 disabled={index === 0}
                 onClick={() => moveSocialLink(index, -1)}
               >
@@ -165,7 +176,7 @@ export function SiteSettingsForm({ initialValues }: SiteSettingsFormProps) {
               </button>
               <button
                 type="button"
-                aria-label={`将第 ${index + 1} 条社交链接下移`}
+                aria-label={t("moveSocialLinkDown", { index: index + 1 })}
                 disabled={index === socialLinks.length - 1}
                 onClick={() => moveSocialLink(index, 1)}
               >
@@ -173,7 +184,7 @@ export function SiteSettingsForm({ initialValues }: SiteSettingsFormProps) {
               </button>
               <button
                 type="button"
-                aria-label={`移除第 ${index + 1} 条社交链接`}
+                aria-label={t("removeSocialLink", { index: index + 1 })}
                 onClick={() =>
                   setSocialLinks((current) =>
                     current.filter((item) => item.id !== link.id),
@@ -187,7 +198,7 @@ export function SiteSettingsForm({ initialValues }: SiteSettingsFormProps) {
               className="admin-social-link__field admin-social-link__url"
               htmlFor={`social-url-${link.id}`}
             >
-              HTTPS 地址
+              {t("socialLinkUrl")}
               <input
                 id={`social-url-${link.id}`}
                 type="url"
@@ -195,7 +206,7 @@ export function SiteSettingsForm({ initialValues }: SiteSettingsFormProps) {
                 onChange={(event) =>
                   updateSocialLink(link.id, "url", event.target.value)
                 }
-                aria-label={`第 ${index + 1} 条社交链接 HTTPS 地址`}
+                aria-label={t("socialLinkUrlLabel", { index: index + 1 })}
                 aria-invalid={Boolean(state.errors?.socialLinks)}
               />
             </label>
@@ -216,7 +227,7 @@ export function SiteSettingsForm({ initialValues }: SiteSettingsFormProps) {
             ])
           }
         >
-          <Plus aria-hidden="true" size={16} /> 添加社交链接
+          <Plus aria-hidden="true" size={16} /> {t("addSocialLink")}
         </button>
       </section>
 
@@ -230,7 +241,7 @@ export function SiteSettingsForm({ initialValues }: SiteSettingsFormProps) {
         </p>
       )}
       <button className="admin-settings-form__save" disabled={isPending}>
-        {isPending ? "保存中…" : "保存设置"}
+        {isPending ? t("saving") : t("saveSettings")}
       </button>
     </form>
   );

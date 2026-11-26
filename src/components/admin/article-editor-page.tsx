@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { getTranslations } from "next-intl/server";
 import { ArticleEditor } from "@/components/admin/article-editor";
 import { requireSiteOwner } from "@/server/auth";
 import { getAdminArticle, getAdminTags } from "@/server/articles";
@@ -21,23 +22,24 @@ async function ArticleEditorContent({ articleId }: { articleId?: string }) {
     getAdminTags(),
   ]);
   if (articleId && !article) notFound();
+  const t = await getTranslations({ locale: "zh", namespace: "Admin" });
 
   return (
     <main className="admin-page article-admin">
       <header className="admin-page__header">
-        <Link href="/admin">LAWSON · 管理后台</Link>
-        <Link href="/admin/articles">返回文章管理</Link>
+        <Link href="/admin">{t("brand")}</Link>
+        <Link href="/admin/articles">{t("backToArticles")}</Link>
       </header>
       <section className="article-admin__content article-admin__editor-content">
         <div className="article-admin__heading">
           <div>
-            <p className="article-admin__eyebrow">文章 · {article ? "编辑" : "新建"}</p>
-            <h1>{article ? article.title || "编辑草稿" : "写一篇文章"}</h1>
-            <p>先保存草稿；发布前确认文章网址和正文内容。</p>
+            <p className="article-admin__eyebrow">{t("articleLabel")} · {article ? t("editLabel") : t("newLabel")}</p>
+            <h1>{article ? article.title || t("editArticleDraft") : t("writeArticle")}</h1>
+            <p>{t("articleEditorDescription")}</p>
           </div>
           {article?.slug && article.status === "PUBLISHED" && (
             <Link href={`/zh/articles/${article.slug}`} target="_blank" rel="noreferrer">
-              查看公开页面
+              {t("viewPublicPage")}
             </Link>
           )}
         </div>

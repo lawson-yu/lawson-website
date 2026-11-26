@@ -2,6 +2,8 @@ import { isSiteOwner } from "@/lib/auth-policy";
 import { getVisitorRecordCutoff } from "@/lib/visitor-retention";
 import { getPrisma } from "@/server/db";
 
+export const VISITOR_RECORDS_CACHE_TAG = "visitor-records";
+
 export interface VisitorArticleVisitRecord {
   id: string;
   articleId: string;

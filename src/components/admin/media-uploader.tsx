@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState, type ChangeEvent, type RefObject } from "react";
+import { useTranslations } from "next-intl";
 import { resolveMediaUrl } from "@/lib/media-url";
 
 type UploadResponse = {
@@ -9,7 +10,11 @@ type UploadResponse = {
   error?: string;
 };
 
-async function uploadMediaFile(file: File, kind: "cover" | "body"): Promise<{ key: string; url: string }> {
+async function uploadMediaFile(
+  file: File,
+  kind: "cover" | "body",
+  fallbackError: string,
+): Promise<{ key: string; url: string }> {
   const formData = new FormData();
   formData.set("kind", kind);
   formData.set("file", file);
@@ -20,7 +25,7 @@ async function uploadMediaFile(file: File, kind: "cover" | "body"): Promise<{ ke
   });
   const payload = (await response.json().catch(() => ({}))) as UploadResponse;
   if (!response.ok || !payload.key || !payload.url) {
-    throw new Error(payload.error || "图片上传失败，请稍后重试。");
+    throw new Error(payload.error || fallbackError);
   }
   return { key: payload.key, url: payload.url };
 }
@@ -28,9 +33,9 @@ async function uploadMediaFile(file: File, kind: "cover" | "body"): Promise<{ ke
 export function CoverImageField({
   id,
   name,
-  label = "封面图片",
+  label,
   initialValue = "",
-  helpText = "可留空。上传后自动裁剪为 1200×630 JPEG，并保存相对路径。",
+  helpText,
 }: {
   id: string;
   name: string;
@@ -38,6 +43,7 @@ export function CoverImageField({
   initialValue?: string;
   helpText?: string;
 }) {
+  const t = useTranslations("Admin");
   const [value, setValue] = useState(initialValue);
   const [previewUrl, setPreviewUrl] = useState<string | null>(() => resolveMediaUrl(initialValue));
   const [uploading, setUploading] = useState(false);
@@ -52,15 +58,12 @@ export function CoverImageField({
     setUploading(true);
     setStatus(null);
     try {
-      const uploaded = await uploadMediaFile(file, "cover");
+      const uploaded = await uploadMediaFile(file, "cover", t("coverUploadFailed"));
       setValue(uploaded.key);
       setPreviewUrl(uploaded.url);
-      setStatus({ kind: "success", text: "封面已上传，保存后生效。" });
+      setStatus({ kind: "success", text: t("coverUploaded") });
     } catch (error) {
-      setStatus({
-        kind: "error",
-        text: error instanceof Error ? error.message : "封面上传失败。",
-      });
+      setStatus({ kind: "error", text: error instanceof Error ? error.message : t("coverUploadFailed") });
     } finally {
       setUploading(false);
     }
@@ -75,12 +78,12 @@ export function CoverImageField({
   function handleClear() {
     setValue("");
     setPreviewUrl(null);
-    setStatus({ kind: "success", text: "已清除封面，保存后生效。" });
+    setStatus({ kind: "success", text: t("coverCleared") });
   }
 
   return (
     <div className="media-field">
-      <label htmlFor={id}>{label}</label>
+      <label htmlFor={id}>{label ?? t("coverImage")}</label>
       <div className="media-field__controls">
         <input
           id={id}
@@ -96,22 +99,22 @@ export function CoverImageField({
           accept="image/jpeg,image/png,image/webp,image/avif"
           onChange={handleFileChange}
           hidden
-          aria-label="选择封面图片文件"
+          aria-label={t("selectCoverFile")}
         />
         <button
           type="button"
           onClick={() => fileInputRef.current?.click()}
           disabled={uploading}
         >
-          {uploading ? "上传中…" : "上传封面"}
+          {uploading ? t("uploading") : t("uploadCover")}
         </button>
         {value && (
           <button type="button" onClick={handleClear} disabled={uploading}>
-            清除封面
+            {t("clearCover")}
           </button>
         )}
       </div>
-      <p className="media-field__help">{helpText}</p>
+      <p className="media-field__help">{helpText ?? t("coverImageHelp")}</p>
       {status && (
         <p className="media-field__status" role="status" aria-live="polite" data-kind={status.kind}>
           {status.text}
@@ -120,7 +123,7 @@ export function CoverImageField({
       {previewUrl && (
         <div className="media-field__preview">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={previewUrl} alt="封面预览" />
+          <img src={previewUrl} alt={t("coverPreview")} />
         </div>
       )}
     </div>
@@ -132,6 +135,7 @@ export function MarkdownImageButton({
 }: {
   textareaRef: RefObject<HTMLTextAreaElement | null>;
 }) {
+  const t = useTranslations("Admin");
   const [uploading, setUploading] = useState(false);
   const [status, setStatus] = useState<{ kind: "error" | "success"; text: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -144,8 +148,8 @@ export function MarkdownImageButton({
     setUploading(true);
     setStatus(null);
     try {
-      const uploaded = await uploadMediaFile(file, "body");
-      const alt = file.name.replace(/\.[^.]+$/, "").replace(/[[\]]/g, "").trim() || "插图";
+      const uploaded = await uploadMediaFile(file, "body", t("bodyImageUploadFailed"));
+      const alt = file.name.replace(/\.[^.]+$/, "").replace(/[[\]]/g, "").trim() || t("defaultIllustrationAlt");
       const snippet = `![${alt}](${uploaded.key})`;
       const textarea = textareaRef.current;
       if (textarea) {
@@ -158,12 +162,9 @@ export function MarkdownImageButton({
         textarea.dispatchEvent(new Event("input", { bubbles: true }));
         textarea.focus();
       }
-      setStatus({ kind: "success", text: `已插入正文图片：${uploaded.key}` });
+      setStatus({ kind: "success", text: t("insertedBodyImage", { key: uploaded.key }) });
     } catch (error) {
-      setStatus({
-        kind: "error",
-        text: error instanceof Error ? error.message : "正文图片上传失败。",
-      });
+      setStatus({ kind: "error", text: error instanceof Error ? error.message : t("bodyImageUploadFailed") });
     } finally {
       setUploading(false);
     }
@@ -177,14 +178,14 @@ export function MarkdownImageButton({
         accept="image/jpeg,image/png,image/webp,image/avif"
         onChange={handleFileChange}
         hidden
-        aria-label="选择正文图片文件"
+        aria-label={t("selectBodyImageFile")}
       />
       <button
         type="button"
         onClick={() => fileInputRef.current?.click()}
         disabled={uploading}
       >
-        {uploading ? "上传中…" : "插入正文图片"}
+        {uploading ? t("uploading") : t("insertBodyImage")}
       </button>
       {status && (
         <span className="media-field__status" role="status" aria-live="polite" data-kind={status.kind}>

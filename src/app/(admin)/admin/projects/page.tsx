@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import Link from "next/link";
+import { getTranslations } from "next-intl/server";
 import { requireSiteOwner } from "@/server/auth";
 import { getAdminProjects } from "@/server/projects";
 import { updateFeaturedProject } from "@/server/actions/projects";
@@ -18,25 +19,26 @@ export default function AdminProjectsPage() {
 async function AdminProjectsContent() {
   const session = await requireSiteOwner();
   const projects = await getAdminProjects();
+  const t = await getTranslations({ locale: "zh", namespace: "Admin" });
 
   return (
     <main className="admin-page admin-projects-page">
       <header className="admin-page__header">
-        <Link href="/admin">LAWSON · 管理后台</Link>
+        <Link href="/admin">{t("brand")}</Link>
         <div>
-          <span>已登录 · {session.user.email}</span>
-          <SignOutButton label="退出" />
+          <span>{t("signedIn", { email: session.user.email })}</span>
+          <SignOutButton label={t("signOut")} />
         </div>
       </header>
       <section className="admin-page__content">
         <div className="admin-projects-heading">
           <div>
-            <Link href="/admin" className="admin-projects-back">返回管理后台</Link>
-            <h1>作品管理</h1>
-            <p>保存草稿后，补齐发布信息并确认作品地址即可公开。</p>
+            <Link href="/admin" className="admin-projects-back">{t("backToAdmin")}</Link>
+            <h1>{t("projectsTitle")}</h1>
+            <p>{t("projectsDescription")}</p>
           </div>
           <Link className="admin-page__link" href="/zh/projects" target="_blank" rel="noreferrer">
-            查看公开作品
+            {t("viewPublicProjects")}
           </Link>
         </div>
         <FeaturedManager
@@ -45,20 +47,20 @@ async function AdminProjectsContent() {
           action={updateFeaturedProject}
           items={projects.map((project) => ({
             id: project.id,
-            title: project.name || "未命名作品",
+            title: project.name || t("unnamedProject"),
             status: project.status,
             featuredRank: project.featuredRank,
           }))}
         />
         <ProjectEditor />
-        <section className="admin-project-list" aria-label="已有作品">
-          <h2>已有作品</h2>
+        <section className="admin-project-list" aria-label={t("existingProjects")}>
+          <h2>{t("existingProjects")}</h2>
           {projects.length ? projects.map((project) => (
             <details className="admin-project-row" key={project.id}>
               <summary>
-                <span className="admin-project-row__title">{project.name || "未命名作品"}</span>
+                <span className="admin-project-row__title">{project.name || t("unnamedProject")}</span>
                 <span className="admin-project-status" data-status={project.status}>
-                  {project.status === "PUBLISHED" ? "已发布" : project.status === "WITHDRAWN" ? "已撤下" : "草稿"}
+                  {project.status === "PUBLISHED" ? t("published") : project.status === "WITHDRAWN" ? t("withdrawn") : t("draft")}
                 </span>
                 <span className="admin-project-row__slug">{project.slug}</span>
               </summary>
@@ -77,7 +79,7 @@ async function AdminProjectsContent() {
                 firstPublishedAt: project.firstPublishedAt?.toISOString() ?? null,
               }} />
             </details>
-          )) : <p className="admin-project-empty">还没有作品。先保存一条草稿，随时可以回来继续编辑。</p>}
+          )) : <p className="admin-project-empty">{t("noProjects")}</p>}
         </section>
       </section>
     </main>

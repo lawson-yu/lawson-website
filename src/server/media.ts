@@ -24,13 +24,30 @@ const CONTENT_TYPES: Record<string, string> = {
   avif: "image/avif",
 };
 
+export type MediaErrorCode =
+  | "multipartRequired"
+  | "fileTooLarge"
+  | "invalidKind"
+  | "fileRequired"
+  | "unreadableImage"
+  | "formatUnsupported"
+  | "storageCredentialsMissing"
+  | "bucketMissing"
+  | "invalidMediaPath"
+  | "authServiceUnavailable"
+  | "signInRequired"
+  | "siteOwnerOnly"
+  | "uploadFailed";
+
 export class MediaValidationError extends Error {
   readonly status: number;
+  readonly code: MediaErrorCode;
 
-  constructor(message: string, status = 400) {
-    super(message);
+  constructor(code: MediaErrorCode, status = 400) {
+    super(code);
     this.name = "MediaValidationError";
     this.status = status;
+    this.code = code;
   }
 }
 
@@ -101,24 +118,24 @@ export async function normalizeUploadedImage(
   kind: string,
 ): Promise<NormalizedImage> {
   if (kind !== "cover" && kind !== "body") {
-    throw new MediaValidationError("上传类型无效，仅支持 cover 或 body。", 400);
+    throw new MediaValidationError("invalidKind", 400);
   }
   if (!input.byteLength) {
-    throw new MediaValidationError("请选择要上传的图片文件。", 400);
+    throw new MediaValidationError("fileRequired", 400);
   }
   if (input.byteLength > MAX_MEDIA_UPLOAD_BYTES) {
-    throw new MediaValidationError("图片体积不能超过 10MB。", 413);
+    throw new MediaValidationError("fileTooLarge", 413);
   }
 
   let metadata: Metadata;
   try {
     metadata = await sharp(input, { failOn: "error" }).metadata();
   } catch {
-    throw new MediaValidationError("无法解析图片文件，请上传有效的 JPEG、PNG、WebP 或 AVIF 图片。", 400);
+    throw new MediaValidationError("unreadableImage", 400);
   }
 
   if (!metadata.format || !ALLOWED_INPUT_FORMATS.has(metadata.format)) {
-    throw new MediaValidationError("仅支持 JPEG、PNG、WebP 或 AVIF 格式的图片。", 400);
+    throw new MediaValidationError("formatUnsupported", 400);
   }
 
   // .rotate() 按 EXIF 方向矫正像素，输出时默认剥离 EXIF 隐私元数据。
@@ -170,7 +187,7 @@ function createCosClient(): CosPutObjectClient {
   const secretId = process.env.COS_SECRET_ID?.trim();
   const secretKey = process.env.COS_SECRET_KEY?.trim();
   if (!secretId || !secretKey) {
-    throw new MediaValidationError("服务端缺少 COS_SECRET_ID 或 COS_SECRET_KEY 配置。", 500);
+    throw new MediaValidationError("storageCredentialsMissing", 500);
   }
   const cos = new COS({ SecretId: secretId, SecretKey: secretKey });
   return {
@@ -199,7 +216,7 @@ export async function storeUploadedImage(
     const bucket = (options.cosBucket ?? process.env.COS_BUCKET ?? "").trim();
     const region = (options.cosRegion ?? process.env.COS_REGION ?? DEFAULT_COS_REGION).trim();
     if (!bucket) {
-      throw new MediaValidationError("服务端缺少 COS_BUCKET 配置。", 500);
+      throw new MediaValidationError("bucketMissing", 500);
     }
     const client = options.cosClient ?? createCosClient();
     await client.putObject({
@@ -214,7 +231,7 @@ export async function storeUploadedImage(
     const rootDir = resolve(/*turbopackIgnore: true*/ options.localRootDir ?? getDefaultLocalUploadRoot());
     const targetPath = resolve(/*turbopackIgnore: true*/ rootDir, key);
     if (!targetPath.startsWith(`${rootDir}/`) && targetPath !== rootDir) {
-      throw new MediaValidationError("媒体写入路径非法。", 400);
+      throw new MediaValidationError("invalidMediaPath", 400);
     }
     await mkdir(/*turbopackIgnore: true*/ dirname(targetPath), { recursive: true });
     await writeFile(/*turbopackIgnore: true*/ targetPath, normalized.buffer);

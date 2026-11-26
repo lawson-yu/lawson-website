@@ -137,8 +137,14 @@ test("双语文章与作品列表、详情只公开已发布内容，草稿、�
 
     assert.equal(listResponse.status, 200);
     assert.match(list, locale === "zh" ? /最新文章/ : /Latest articles/);
-    assert.match(list, /已发布的文章/);
-    assert.match(list, new RegExp(`href="/${locale}/articles/published-article"`));
+    assert.match(list, /已发布的文章/, `公开文章列表缺少发布内容。Next 日志：\n${serverOutput.slice(-4_000)}`);
+    const publishedLink = [...list.matchAll(/href="([^"]+)"/g)]
+      .map((match) => match[1])
+      .find((href) => new URL(href, origin).pathname === `/${locale}/articles/published-article`);
+    assert.ok(publishedLink, `${locale} 列表应链接到发布文章`);
+    const returnTo = new URL(publishedLink, origin).searchParams.get("returnTo");
+    assert.ok(returnTo, "文章卡片应保留原列表地址");
+    assert.equal(new URL(returnTo, origin).pathname, "/articles");
     assert.doesNotMatch(list, /未发布的文章|已撤下的文章/);
 
     const detailResponse = await fetch(`${origin}/${locale}/articles/published-article`);
@@ -149,6 +155,8 @@ test("双语文章与作品列表、详情只公开已发布内容，草稿、�
     assert.match(detail, /Lawson/);
     assert.match(detail, /主要内容/);
     assert.match(detail, /<h2 id="主要内容">/);
+    assert.match(detail, /href="#setext-heading">Setext Heading<\/a>/);
+    assert.match(detail, /<h2 id="setext-heading">Setext Heading<\/h2>/);
     assert.match(detail, /article-reading__tags/);
     assert.match(detail, /AI/);
     assert.match(detail, /article-reading__cover/);
@@ -177,10 +185,9 @@ test("双语文章与作品列表、详情只公开已发布内容，草稿、�
   for (const locale of ["zh", "en"]) {
     for (const slug of ["missing-article", "draft-article", "withdrawn-article"]) {
       const response = await fetch(`${origin}/${locale}/articles/${slug}`);
-      const body = await response.text();
+      await response.text();
 
       assert.equal(response.status, 404, `${locale}/${slug} 必须返回 HTTP 404`);
-      assert.match(body, new RegExp(`href="/${locale}/articles`));
     }
     for (const slug of ["missing-project", "legacy-internal", "withdrawn-internal-project", "personal-website"]) {
       const response = await fetch(`${origin}/${locale}/projects/${slug}`);

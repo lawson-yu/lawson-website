@@ -190,7 +190,7 @@ async function prepareDatabase() {
     ],
   });
 
-  // 历史已发布中文文章（searchText 刻意留空，验证历史数据自动回填可检索）
+  // 历史已发布中文文章（searchText 刻意留空，验证检索可用且读取不回填）
   await prisma.article.create({
     data: {
       id: "hist-zh-ai",
@@ -366,6 +366,11 @@ test("按关键词检索已发布历史数据：命中标题/摘要/正文/代�
   // Markdown 标记不参与匹配
   html = await (await fetch(`${origin}/zh/articles?q=${encodeURIComponent("## 实现细节")}`)).text();
   assert.doesNotMatch(html, /历史语义检索笔记/);
+  assert.equal(
+    (await prisma.article.findUnique({ where: { id: "hist-zh-ai" }, select: { searchText: true } })).searchText,
+    "",
+    "查询不能在缓存读取时写回历史文章",
+  );
 });
 
 test("英文忽略大小写与跨界面语言搜索：中英文界面均能搜到任一正文语言的已发布文章", async () => {

@@ -4,6 +4,7 @@ import { getTranslations } from "next-intl/server";
 import { buildListMetadata } from "@/lib/seo";
 import { getPublishedProjects } from "@/server/projects";
 import { ProjectCard, WorksBrowseLink } from "./_components/project-card";
+import { Suspense } from "react";
 
 type Props = { params: Promise<{ locale: string }> };
 
@@ -19,7 +20,15 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   });
 }
 
-export default async function ProjectsPage({ params }: Props) {
+export default function ProjectsPage({ params }: Props) {
+  return (
+    <Suspense fallback={<main className="works-page" aria-busy="true" />}>
+      <ProjectsPageContent params={params} />
+    </Suspense>
+  );
+}
+
+async function ProjectsPageContent({ params }: Props) {
   await connection();
   const { locale } = await params;
   const t = await getTranslations("Projects");

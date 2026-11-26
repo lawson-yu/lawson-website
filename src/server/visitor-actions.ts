@@ -1,12 +1,15 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { getTranslations } from "next-intl/server";
+import { VISITOR_RECORD_RETENTION_MONTHS } from "@/lib/visitor-retention";
+import { revalidatePath, updateTag } from "next/cache";
 import { getCurrentSession, requireSiteOwner } from "@/server/auth";
 import {
   deleteVisitorAccount,
   pruneExpiredVisitorRecords,
   recordArticleVisit,
   recordProjectVisit,
+  VISITOR_RECORDS_CACHE_TAG,
 } from "@/server/visitors";
 
 export interface VisitorAdminActionState {
@@ -20,6 +23,7 @@ export async function recordArticleVisitAction(articleId: string) {
 
   try {
     const recorded = await recordArticleVisit(session.user.id, articleId);
+    if (recorded) updateTag(VISITOR_RECORDS_CACHE_TAG);
     return { recorded };
   } catch {
     return { recorded: false };
@@ -32,6 +36,7 @@ export async function recordProjectVisitAction(projectId: string) {
 
   try {
     const recorded = await recordProjectVisit(session.user.id, projectId);
+    if (recorded) updateTag(VISITOR_RECORDS_CACHE_TAG);
     return { recorded };
   } catch {
     return { recorded: false };
@@ -40,15 +45,21 @@ export async function recordProjectVisitAction(projectId: string) {
 
 export async function pruneExpiredVisitorRecordsAction(): Promise<VisitorAdminActionState> {
   await requireSiteOwner();
+  const t = await getTranslations({ locale: "zh", namespace: "AdminActions" });
   try {
     const result = await pruneExpiredVisitorRecords();
+    updateTag(VISITOR_RECORDS_CACHE_TAG);
     revalidatePath("/admin/visitors");
     return {
       status: "success",
-      message: `已清理 24 个月前的访问记录：文章 ${result.deletedArticleVisits} 条，作品 ${result.deletedProjectVisits} 条。`,
+      message: t("pruneSuccess", {
+        articles: result.deletedArticleVisits,
+        projects: result.deletedProjectVisits,
+        months: VISITOR_RECORD_RETENTION_MONTHS,
+      }),
     };
   } catch {
-    return { status: "error", message: "清理失败，请稍后重试。" };
+    return { status: "error", message: t("pruneFailure") };
   }
 }
 
@@ -57,9 +68,10 @@ export async function deleteVisitorAccountAction(
   formData: FormData,
 ): Promise<VisitorAdminActionState> {
   const session = await requireSiteOwner();
+  const t = await getTranslations({ locale: "zh", namespace: "AdminActions" });
   const visitorId = formData.get("visitorId");
   if (typeof visitorId !== "string" || !visitorId.trim()) {
-    return { status: "error", message: "缺少访客标识。" };
+    return { status: "error", message: t("missingVisitorId") };
   }
 
   try {
@@ -69,15 +81,16 @@ export async function deleteVisitorAccountAction(
         status: "error",
         message:
           result.reason === "self"
-            ? "不能删除当前登录的站长账号。"
+            ? t("cannotDeleteSelf")
             : result.reason === "owner"
-              ? "不能删除白名单中的站长账号。"
-              : "访客账号不存在或已被删除。",
+              ? t("cannotDeleteOwner")
+              : t("visitorNotFound"),
       };
     }
+    updateTag(VISITOR_RECORDS_CACHE_TAG);
     revalidatePath("/admin/visitors");
-    return { status: "success", message: "已删除该访客账号及全部关联记录。" };
+    return { status: "success", message: t("deleteSuccess") };
   } catch {
-    return { status: "error", message: "删除失败，请稍后重试。" };
+    return { status: "error", message: t("deleteFailure") };
   }
 }

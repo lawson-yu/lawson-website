@@ -376,7 +376,7 @@ test("文章列表按发布时间和 ID 排序，并可手动增量加载", { ti
   const page = await context.newPage();
 
   try {
-    await page.goto(`${origin}/zh/articles`);
+    await page.goto(`${origin}/zh/articles`, { waitUntil: "networkidle" });
     const cards = page.locator(".articles-index__grid > li");
     await page.waitForFunction(() => document.querySelectorAll(".articles-index__grid > li").length > 0);
     assert.equal(await cards.count(), 6);
@@ -917,6 +917,7 @@ test("站长分别管理首页精选顺序与上限，撤下内容可恢复位�
     let html = await response.text();
     assert.equal(response.status, 200);
     assert.doesNotMatch(html, /id="featured-articles"|id="featured-projects"/);
+    assert.doesNotMatch(html, /class="home-hero__explore"/);
 
     await stopServer();
     await startServer(true);
@@ -982,7 +983,16 @@ test("站长分别管理首页精选顺序与上限，撤下内容可恢复位�
 
     context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
     const page = await context.newPage();
-    await page.goto(`${origin}/zh`);
+    await page.goto(`${origin}/zh`, { waitUntil: "networkidle" });
+    const prompt = page.locator(".home-hero__explore");
+    assert.equal(await prompt.count(), 1);
+    assert.equal((await prompt.locator(".home-hero__explore-label").innerText()).trim(), "Explore Below ↓");
+    assert.equal((await prompt.locator(".home-hero__explore-description").innerText()).trim(), "向下浏览精选文章");
+    assert.equal(await prompt.evaluate((element) => element.tagName), "P");
+    assert.equal(await prompt.getAttribute("aria-hidden"), "true");
+    assert.equal(await prompt.getAttribute("tabindex"), null);
+    assert.equal(await prompt.locator("a, button, [tabindex]").count(), 0);
+
     let articleCards = page.locator("#featured-articles .home-featured__article");
     assert.equal(await articleCards.count(), 5);
     assert.deepEqual(await articleCards.locator(".article-card__title").allTextContents(), [
@@ -995,11 +1005,12 @@ test("站长分别管理首页精选顺序与上限，撤下内容可恢复位�
       ["featured-articles", "particle-transition", "home-projects"],
     );
 
-    await page.goto(`${origin}/en`);
+    await page.goto(`${origin}/en`, { waitUntil: "networkidle" });
     await page.getByRole("heading", { name: "Featured articles" }).waitFor();
+    assert.equal(await page.locator(".home-hero__explore-description").innerText(), "Scroll to explore featured articles");
     assert.equal(await page.locator("#featured-articles .article-card__title").count(), 5);
     assert.equal(await page.locator("#featured-projects-title").innerText(), "Selected works");
-    await page.goto(`${origin}/zh`);
+    await page.goto(`${origin}/zh`, { waitUntil: "networkidle" });
 
     let homeProjects = page.locator("#featured-projects .works-card");
     assert.equal(await homeProjects.count(), 3);
@@ -1011,7 +1022,7 @@ test("站长分别管理首页精选顺序与上限，撤下内容可恢复位�
     assert.equal(await internalHomeCard.locator(".works-card__link").getAttribute("href"), `/zh/projects/${projectIds[0]}`);
     assert.equal(await externalHomeCard.locator(".works-card__link").getAttribute("href"), `https://${projectIds[1]}.example/open`);
 
-    await page.goto(`${origin}/zh/projects`);
+    await page.goto(`${origin}/zh/projects`, { waitUntil: "networkidle" });
     const projectList = page.locator(".works-grid .works-card");
     assert.equal(await projectList.filter({ hasText: "首页精选作品 4" }).count(), 1, "未精选作品仍保留在作品列表");
     assert.equal(
@@ -1028,7 +1039,7 @@ test("站长分别管理首页精选顺序与上限，撤下内容可恢复位�
     response = await submitProjectAction(`/admin/articles/${articleIds[1]}`, form, { intent: "withdraw" }, cookie);
     assert.ok(response.status < 400, `撤下精选文章失败：${response.status}`);
     await response.arrayBuffer();
-    await page.goto(`${origin}/zh`);
+    await page.goto(`${origin}/zh`, { waitUntil: "networkidle" });
     articleCards = page.locator("#featured-articles .home-featured__article");
     assert.deepEqual(await articleCards.locator(".article-card__title").allTextContents(), [
       "首页精选文章 1", "首页精选文章 3", "首页精选文章 4", "首页精选文章 6",
@@ -1053,7 +1064,7 @@ test("站长分别管理首页精选顺序与上限，撤下内容可恢复位�
     }, cookie);
     assert.ok(response.status < 400, `重新发布精选文章失败：${response.status}`);
     await response.arrayBuffer();
-    await page.goto(`${origin}/zh`);
+    await page.goto(`${origin}/zh`, { waitUntil: "networkidle" });
     articleCards = page.locator("#featured-articles .home-featured__article");
     assert.equal(await articleCards.locator(".article-card__title").first().textContent(), "首页精选文章 2");
 
@@ -1066,7 +1077,7 @@ test("站长分别管理首页精选顺序与上限，撤下内容可恢复位�
     response = await submitProjectAction("/admin/projects", form, { id: projectIds[1] }, cookie);
     assert.ok(response.status < 400, `撤下精选作品失败：${response.status}`);
     await response.arrayBuffer();
-    await page.goto(`${origin}/zh`);
+    await page.goto(`${origin}/zh`, { waitUntil: "networkidle" });
     homeProjects = page.locator("#featured-projects .works-card");
     assert.deepEqual(await homeProjects.locator(".works-card__title").allTextContents(), [
       "首页精选作品 1", "首页精选作品 3",
@@ -1081,7 +1092,7 @@ test("站长分别管理首页精选顺序与上限，撤下内容可恢复位�
     response = await submitProjectAction("/admin/projects", form, { id: projectIds[1] }, cookie);
     assert.ok(response.status < 400, `重新发布精选作品失败：${response.status}`);
     await response.arrayBuffer();
-    await page.goto(`${origin}/zh`);
+    await page.goto(`${origin}/zh`, { waitUntil: "networkidle" });
     homeProjects = page.locator("#featured-projects .works-card");
     assert.equal(await homeProjects.locator(".works-card__title").first().textContent(), "首页精选作品 2");
   } finally {
@@ -1143,26 +1154,15 @@ test("站点设置在中英文首页共用原文并按序展示", async () => {
   }
 });
 
-test("首页滚动提示保留英文且不响应点击或进入焦点顺序", async () => {
+test("首页没有精选文章时隐藏滚动提示", async () => {
   const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
   const page = await context.newPage();
 
   try {
-    await page.goto(`${origin}/zh`);
-    const prompt = page.locator(".home-hero__explore");
-    assert.equal((await prompt.locator(".home-hero__explore-label").innerText()).trim(), "Explore Below ↓");
-    assert.equal((await prompt.locator(".home-hero__explore-description").innerText()).trim(), "向下浏览精选文章");
-    assert.equal(await prompt.evaluate((element) => element.tagName), "P");
-    assert.equal(await prompt.getAttribute("aria-hidden"), "true");
-    assert.equal(await prompt.getAttribute("tabindex"), null);
-    assert.equal(await prompt.getAttribute("data-scroll-target"), "#featured-articles");
-    assert.equal(await prompt.locator("a, button, [tabindex]").count(), 0);
-
-    await page.goto(`${origin}/en`);
-    assert.equal(
-      (await page.locator(".home-hero__explore-description").innerText()).trim(),
-      "Scroll to explore featured articles",
-    );
+    for (const locale of ["zh", "en"]) {
+      await page.goto(`${origin}/${locale}`);
+      assert.equal(await page.locator(".home-hero__explore").count(), 0);
+    }
   } finally {
     await context.close();
   }

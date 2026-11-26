@@ -3,15 +3,17 @@ import type { Metadata } from "next";
 import { ArrowLeft, ArrowUpRight } from "lucide-react";
 import { getTranslations } from "next-intl/server";
 import { notFound } from "next/navigation";
-import { Suspense } from "react";
 import { Link } from "@/i18n/navigation";
 import { VisitTracker } from "@/components/public-site/visit-tracker";
 import { resolveMediaUrl } from "@/lib/media-url";
+import { getContentLocale } from "@/lib/content-language";
 import { buildDetailMetadata } from "@/lib/seo";
 import { getPublishedProject } from "@/server/projects";
 import { ProjectMarkdown } from "./_components/project-markdown";
 
 type Props = { params: Promise<{ locale: string; slug: string }> };
+
+export const instant = false;
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   await connection();
@@ -32,15 +34,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   });
 }
 
-export default function ProjectDetailPage({ params }: Props) {
-  return (
-    <Suspense fallback={<main className="project-detail-page" aria-busy="true" />}>
-      <ProjectDetailContent params={params} />
-    </Suspense>
-  );
-}
-
-async function ProjectDetailContent({ params }: Props) {
+export default async function ProjectDetailPage({ params }: Props) {
   await connection();
   const { locale, slug } = await params;
   const project = await getPublishedProject(slug);
@@ -50,7 +44,7 @@ async function ProjectDetailContent({ params }: Props) {
   const publishedAt = project.firstPublishedAt ?? project.createdAt;
   const date = new Intl.DateTimeFormat(locale, { dateStyle: "medium" }).format(publishedAt);
   const cover = resolveMediaUrl(project.coverImage);
-  const bodyLanguage = project.contentLanguage === "en" ? "en" : "zh";
+  const bodyLanguage = getContentLocale(project.contentLanguage);
 
   return (
     <main className="project-detail-page">
@@ -81,7 +75,7 @@ async function ProjectDetailContent({ params }: Props) {
           </figure>
         )}
         <div className="project-detail__body" lang={bodyLanguage}>
-          <ProjectMarkdown source={project.body} />
+          <ProjectMarkdown source={project.body} codeScrollLabel={t("codeScrollLabel")} />
         </div>
         <footer className="project-detail__footer">
           <Link href="/projects">{t("continueBrowsing")}</Link>
