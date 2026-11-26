@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { resolveMediaUrl } from "@/lib/media-url";
+import { MarkdownImage } from "@/components/public-site/markdown-image";
 
 export type ArticleHeading = {
   depth: 2 | 3;
@@ -12,23 +12,11 @@ export type ArticleHeading = {
 export function getArticleHeadings(markdown: string): ArticleHeading[] {
   const headings: ArticleHeading[] = [];
   const usedIds = new Map<string, number>();
+  const paragraphLines: string[] = [];
   let fence: { marker: string; length: number } | undefined;
 
-  for (const line of markdown.split("\n")) {
-    const fenceLine = line.match(/^ {0,3}(`{3,}|~{3,})/);
-    if (fenceLine) {
-      const marker = fenceLine[1][0];
-      const length = fenceLine[1].length;
-      if (!fence) fence = { marker, length };
-      else if (fence.marker === marker && length >= fence.length) fence = undefined;
-      continue;
-    }
-    if (fence) continue;
-
-    const match = line.match(/^ {0,3}(#{2,3})\s+(.+?)\s*#*\s*$/);
-    if (!match) continue;
-
-    const text = match[2]
+  const addHeading = (depth: 2 | 3, sourceText: string) => {
+    const text = sourceText
       .replace(/`([^`]+)`/g, "$1")
       .replace(/!?\[([^\]]+)\]\([^)]*\)/g, "$1")
       .replace(/[*_~]/g, "")
@@ -44,10 +32,46 @@ export function getArticleHeadings(markdown: string): ArticleHeading[] {
     usedIds.set(base, occurrence + 1);
 
     headings.push({
-      depth: match[1].length as 2 | 3,
+      depth,
       text,
       id: occurrence ? `${base}-${occurrence}` : base,
     });
+  };
+
+  for (const line of markdown.split("\n")) {
+    const fenceLine = line.match(/^ {0,3}(`{3,}|~{3,})/);
+    if (fenceLine) {
+      paragraphLines.length = 0;
+      const marker = fenceLine[1][0];
+      const length = fenceLine[1].length;
+      if (!fence) fence = { marker, length };
+      else if (fence.marker === marker && length >= fence.length) fence = undefined;
+      continue;
+    }
+    if (fence) continue;
+
+    if (!line.trim()) {
+      paragraphLines.length = 0;
+      continue;
+    }
+
+    const setext = line.match(/^ {0,3}(=+|-+)\s*$/);
+    if (setext) {
+      if (setext[1][0] === "-" && paragraphLines.length > 0) {
+        addHeading(2, paragraphLines.join(" "));
+      }
+      paragraphLines.length = 0;
+      continue;
+    }
+
+    const atx = line.match(/^ {0,3}(#{2,3})\s+(.+?)\s*#*\s*$/);
+    if (atx) {
+      addHeading(atx[1].length as 2 | 3, atx[2]);
+      paragraphLines.length = 0;
+      continue;
+    }
+
+    paragraphLines.push(line.trim());
   }
 
   return headings;
@@ -75,13 +99,7 @@ export function ArticleMarkdown({
       components={{
         h2: renderHeading("h2"),
         h3: renderHeading("h3"),
-        img: ({ src, alt }) => {
-          if (typeof src !== "string") return null;
-          const imageSrc = resolveMediaUrl(src);
-
-          // eslint-disable-next-line @next/next/no-img-element
-          return imageSrc ? <img src={imageSrc} alt={alt ?? ""} loading="lazy" /> : null;
-        },
+        img: MarkdownImage,
       }}
     >
       {markdown}

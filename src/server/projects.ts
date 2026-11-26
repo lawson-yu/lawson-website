@@ -13,6 +13,20 @@ export async function getPublishedProjects() {
   });
 }
 
+export async function getPublishedProjectSitemapEntries() {
+  "use cache";
+  cacheTag("projects");
+
+  return getPrisma().project.findMany({
+    where: {
+      status: "PUBLISHED",
+      cardTarget: "INTERNAL",
+    },
+    select: { slug: true, contentLanguage: true, updatedAt: true },
+    orderBy: [{ firstPublishedAt: "desc" }],
+  });
+}
+
 export async function getFeaturedProjects() {
   "use cache";
 
@@ -51,6 +65,21 @@ export async function getPublishedProject(slug: string) {
       cardTarget: "INTERNAL",
     },
   });
+}
+
+export async function isPublishedProjectSlug(slug: string) {
+  const project = await getPrisma().project.findFirst({
+    where: {
+      slug,
+      status: "PUBLISHED",
+      cardTarget: "INTERNAL",
+      body: { not: "" },
+      contentLanguage: { not: "" },
+    },
+    select: { id: true },
+  });
+
+  return Boolean(project);
 }
 
 export async function getAdminProjects() {

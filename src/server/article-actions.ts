@@ -1,9 +1,12 @@
 "use server";
 
 import { updateTag } from "next/cache";
+import { getTranslations } from "next-intl/server";
 import { redirect } from "next/navigation";
 import { buildArticleSearchText } from "@/lib/article-search";
 import { normalizeSubmittedMediaKey } from "@/lib/media-url";
+import { isContentLanguage } from "@/lib/content-language";
+import { isValidSlug } from "@/lib/slug";
 import { getFeaturedRankUpdates, type FeaturedIntent } from "@/lib/featured-rank";
 import { getPrisma } from "./db";
 import { requireSiteOwner } from "./auth";
@@ -32,14 +35,18 @@ function isUniqueViolation(error: unknown) {
   return typeof error === "object" && error !== null && "code" in error && error.code === "P2002";
 }
 
-function getMissingFields(values: ArticleActionState["values"], slug: string) {
+function getMissingFields(
+  values: ArticleActionState["values"],
+  slug: string,
+  labels: { title: string; excerpt: string; bodyLanguage: string; body: string; slug: string; validSlug: string },
+) {
   const missing: string[] = [];
-  if (!values.title) missing.push("标题");
-  if (!values.excerpt) missing.push("摘要");
-  if (values.bodyLanguage !== "zh" && values.bodyLanguage !== "en") missing.push("正文语言");
-  if (!values.body) missing.push("正文");
-  if (!slug) missing.push("文章网址");
-  else if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug) || slug.length > 120) missing.push("有效的文章网址");
+  if (!values.title) missing.push(labels.title);
+  if (!values.excerpt) missing.push(labels.excerpt);
+  if (!isContentLanguage(values.bodyLanguage)) missing.push(labels.bodyLanguage);
+  if (!values.body) missing.push(labels.body);
+  if (!slug) missing.push(labels.slug);
+  else if (!isValidSlug(slug) || slug.length > 120) missing.push(labels.validSlug);
   return missing;
 }
 
@@ -48,6 +55,8 @@ export async function saveArticle(
   formData: FormData,
 ): Promise<ArticleActionState> {
   await requireSiteOwner();
+  const t = await getTranslations({ locale: "zh", namespace: "AdminActions" });
+  const adminT = await getTranslations({ locale: "zh", namespace: "Admin" });
 
   const id = value(formData, "articleId");
   const intent = value(formData, "intent");
@@ -64,18 +73,18 @@ export async function saveArticle(
       .filter(Boolean))],
   };
   if (!["save", "publish", "withdraw"].includes(intent)) {
-    return { revision: previousState.revision + 1, message: "操作无效，请重新提交。", values };
+    return { revision: previousState.revision + 1, message: t("articleOperationInvalid"), values };
   }
 
   const prisma = getPrisma();
   const existing = id ? await prisma.article.findUnique({ where: { id } }) : null;
   if (id && !existing) {
-    return { revision: previousState.revision + 1, message: "找不到这篇文章。", values };
+    return { revision: previousState.revision + 1, message: t("articleNotFound"), values };
   }
 
   if (intent === "withdraw") {
     if (existing?.status !== "PUBLISHED") {
-      return { revision: previousState.revision + 1, message: "只有已发布的文章可以撤下。", values };
+      return { revision: previousState.revision + 1, message: t("articleWithdrawOnlyPublished"), values };
     }
     await prisma.article.update({ where: { id }, data: { status: "WITHDRAWN" } });
     updateTag("articles");
@@ -88,19 +97,26 @@ export async function saveArticle(
   if (validTagCount !== values.tagIds.length) {
     return {
       revision: previousState.revision + 1,
-      message: "标签已变化，请刷新页面后重试。",
+      message: t("articleTagsChanged"),
       values,
     };
   }
 
   const slug = existing?.slug ?? values.slug;
   const requiredFields = intent === "publish" || existing?.status === "PUBLISHED"
-    ? getMissingFields(values, slug)
+    ? getMissingFields(values, slug, {
+        title: adminT("articleTitle"),
+        excerpt: adminT("articleExcerpt"),
+        bodyLanguage: adminT("bodyLanguage"),
+        body: adminT("articleBody"),
+        slug: adminT("articleSlug"),
+        validSlug: adminT("validArticleSlug"),
+      })
     : [];
   if (requiredFields.length) {
     return {
       revision: previousState.revision + 1,
-      message: `请先补齐：${requiredFields.join("、")}`,
+      message: t("articleMissingFields", { fields: requiredFields.join("、") }),
       missing: requiredFields,
       values,
     };
@@ -109,7 +125,7 @@ export async function saveArticle(
   if (existing && existing.slug && values.slug && values.slug !== existing.slug) {
     return {
       revision: previousState.revision + 1,
-      message: "文章发布后网址固定，不能修改。",
+      message: t("articleSlugFixed"),
       values,
     };
   }
@@ -118,7 +134,7 @@ export async function saveArticle(
   if (values.coverImageKey && !normalizedCoverImageKey) {
     return {
       revision: previousState.revision + 1,
-      message: "封面路径格式无效，请通过上传按钮上传或填写合法的相对媒体路径。",
+      message: t("invalidCoverPath"),
       values,
     };
   }
@@ -157,7 +173,7 @@ export async function saveArticle(
     if (isUniqueViolation(error)) {
       return {
         revision: previousState.revision + 1,
-        message: "这个网址已被其他文章使用，请换一个。",
+        message: t("articleSlugTaken"),
         values,
       };
     }

@@ -3,9 +3,9 @@ import type { Metadata } from "next";
 import { ArrowLeft, ArrowUpRight, ChevronDown } from "lucide-react";
 import { getTranslations } from "next-intl/server";
 import { notFound } from "next/navigation";
-import { Suspense } from "react";
 import { Link } from "@/i18n/navigation";
 import { resolveMediaUrl } from "@/lib/media-url";
+import { getContentLocale } from "@/lib/content-language";
 import { buildDetailMetadata } from "@/lib/seo";
 import { getPublishedArticle } from "@/server/articles";
 import { ArticleMarkdown, getArticleHeadings, type ArticleHeading } from "./_components/article-markdown";
@@ -15,6 +15,8 @@ type ArticlePageProps = {
   params: Promise<{ locale: string; slug: string }>;
   searchParams: Promise<{ returnTo?: string }>;
 };
+
+export const instant = false;
 
 type PublishedArticle = NonNullable<Awaited<ReturnType<typeof getPublishedArticle>>> & {
   firstPublishedAt: Date;
@@ -115,15 +117,7 @@ function TableOfContents({
   );
 }
 
-export default function ArticlePage({ params, searchParams }: ArticlePageProps) {
-  return (
-    <Suspense fallback={<main className="article-reading" aria-busy="true" />}>
-      <ArticlePageContent params={params} searchParams={searchParams} />
-    </Suspense>
-  );
-}
-
-async function ArticlePageContent({ params, searchParams }: ArticlePageProps) {
+export default async function ArticlePage({ params, searchParams }: ArticlePageProps) {
   await connection();
   const [{ locale, slug }, { returnTo }] = await Promise.all([params, searchParams]);
   const returnHref = articleReturnHref(returnTo, slug);
@@ -136,7 +130,7 @@ async function ArticlePageContent({ params, searchParams }: ArticlePageProps) {
   const headings = getArticleHeadings(article.body);
   const h2Count = headings.filter(({ depth }) => depth === 2).length;
   const showContents = h2Count >= 2;
-  const bodyLanguage = article.bodyLanguage === "en" ? "en" : "zh";
+  const bodyLanguage = getContentLocale(article.bodyLanguage);
   const coverUrl = resolveMediaUrl(article.coverImageKey);
 
   return (

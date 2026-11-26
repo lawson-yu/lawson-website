@@ -176,10 +176,11 @@ async function startServer(authenticated = false) {
   origin = `http://127.0.0.1:${port}`;
   serverOutput = "";
   server = spawn(
-    "pnpm",
-    ["exec", "next", "dev", "--hostname", "127.0.0.1", "--port", String(port)],
+    process.execPath,
+    [join(root, "node_modules", "next", "dist", "bin", "next"), "dev", "--hostname", "127.0.0.1", "--port", String(port)],
     {
       cwd: projectRoot,
+      detached: true,
       stdio: ["ignore", "pipe", "pipe"],
       env: {
         ...process.env,
@@ -215,13 +216,27 @@ async function startServer(authenticated = false) {
   throw new Error(`Next.js 启动超时：\n${serverOutput}`);
 }
 
+function signalServerGroup(signal) {
+  if (!server?.pid) return;
+  try {
+    process.kill(-server.pid, signal);
+  } catch (error) {
+    if (error.code !== "ESRCH") throw error;
+  }
+}
+
 async function stopServer() {
-  if (!server || server.exitCode !== null) {
+  if (!server) return;
+  if (server.exitCode !== null) {
+    signalServerGroup("SIGKILL");
     server = undefined;
     return;
   }
-  server.kill("SIGTERM");
-  await Promise.race([once(server, "exit"), delay(5_000)]);
+  const exit = once(server, "exit");
+  signalServerGroup("SIGTERM");
+  await Promise.race([exit, delay(5_000)]);
+  signalServerGroup("SIGKILL");
+  if (server.exitCode === null) await exit;
   server = undefined;
 }
 
@@ -361,6 +376,7 @@ function countChangedPixels(first, second) {
   }
   return changed * 64;
 }
+
 async function submitProjectAction(path, hiddenFields, values, cookie) {
   const formData = new FormData();
   for (const [name, value] of hiddenFields) formData.set(name, value);
@@ -427,11 +443,11 @@ test("文章列表按发布时间和 ID 排序，并可手动增量加载", { ti
   const page = await context.newPage();
 
   try {
-    await page.goto(`${origin}/zh/articles`);
+    await page.goto(`${origin}/zh/articles`, { waitUntil: "networkidle" });
     const cards = page.locator(".articles-index__grid > li");
     await page.waitForFunction(() => document.querySelectorAll(".articles-index__grid > li").length > 0);
     assert.equal(await cards.count(), 6);
-    assert.deepEqual(await cards.locator(".article-card__title:visible").allTextContents(), [
+    assert.deepEqual(await page.locator(".article-card__title").allTextContents(), [
       "AI 技术文章",
       "未筛选的写作文章",
       "较新的文章",
@@ -442,7 +458,7 @@ test("文章列表按发布时间和 ID 排序，并可手动增量加载", { ti
 
     await page.getByRole("link", { name: "加载更多文章" }).click();
     await page.waitForFunction(() => document.querySelectorAll(".articles-index__grid > li").length === 8);
-    assert.deepEqual((await cards.locator(".article-card__title:visible").allTextContents()).slice(-2), [
+    assert.deepEqual((await page.locator(".article-card__title").allTextContents()).slice(-2), [
       "较早文章 B",
       "较早文章 C",
     ]);
@@ -968,6 +984,7 @@ test("站长分别管理首页精选顺序与上限，撤下内容可恢复位�
     let html = await response.text();
     assert.equal(response.status, 200);
     assert.doesNotMatch(html, /id="featured-articles"|id="featured-projects"/);
+    assert.doesNotMatch(html, /class="home-hero__explore"/);
 
     await stopServer();
     await startServer(true);
@@ -1035,12 +1052,8 @@ test("站长分别管理首页精选顺序与上限，撤下内容可恢复位�
     let page = await navigateToHome(
       context,
       "/zh",
-      () => {
-        const visibleCount = (selector) =>
-          [...document.querySelectorAll(selector)].filter((element) => element.checkVisibility()).length;
-        return visibleCount("#featured-articles .home-featured__article") === 5 &&
-          visibleCount("#featured-projects .works-card") === 3;
-      },
+      () => document.querySelectorAll("#featured-articles .home-featured__article").length === 5 &&
+        document.querySelectorAll("#featured-projects .works-card").length === 3,
       undefined,
       false,
     );
@@ -1052,14 +1065,15 @@ test("站长分别管理首页精选顺序与上限，撤下内容可恢复位�
     assert.equal(await prompt.getAttribute("aria-hidden"), "true");
     assert.equal(await prompt.getAttribute("tabindex"), null);
     assert.equal(await prompt.locator("a, button, [tabindex]").count(), 0);
-    let articleCards = page.locator("#featured-articles .home-featured__article:visible");
+
+    let articleCards = page.locator("#featured-articles .home-featured__article");
     assert.equal(await articleCards.count(), 5);
     assert.deepEqual(await articleCards.locator(".article-card__title").allTextContents(), [
       "首页精选文章 2", "首页精选文章 1", "首页精选文章 3", "首页精选文章 4", "首页精选文章 6",
     ]);
     assert.equal(await articleCards.locator(".article-card__title").first().getAttribute("href"), `/zh/articles/${articleIds[1]}`);
     assert.deepEqual(
-      await page.locator(".home-featured-articles:visible, .home-particle-transition:visible, .home-featured-projects:visible")
+      await page.locator(".home-featured-articles, .home-particle-transition, .home-featured-projects")
         .evaluateAll((sections) => sections.map((section) => section.getAttribute("data-home-motion"))),
       ["featured-articles", "particle-transition", "home-projects"],
     );
@@ -1067,27 +1081,27 @@ test("站长分别管理首页精选顺序与上限，撤下内容可恢复位�
     page = await navigateToHome(
       context,
       "/en",
-      () => {
-        const visible = (selector) => [...document.querySelectorAll(selector)].filter((element) => element.checkVisibility());
-        return visible("#featured-articles .article-card__title").length === 5 &&
-          visible("#featured-projects-title").some((element) => element.textContent === "Selected works");
-      },
+      () => document.querySelectorAll("#featured-articles .article-card__title").length === 5 &&
+        document.querySelector("#featured-projects-title")?.textContent === "Selected works",
       page,
       false,
     );
     await page.getByRole("heading", { name: "Featured articles" }).waitFor();
-    assert.equal(await page.locator("#featured-articles .article-card__title:visible").count(), 5);
-    assert.equal(await page.locator("#featured-projects-title:visible").innerText(), "Selected works");
+    assert.equal(
+      await page.getByRole("region", { name: "LAWSON" }).getByText("Scroll to explore featured articles").innerText(),
+      "Scroll to explore featured articles",
+    );
+    assert.equal(await page.locator("#featured-articles .article-card__title").count(), 5);
+    assert.equal(await page.locator("#featured-projects-title").innerText(), "Selected works");
     page = await navigateToHome(
       context,
       "/zh",
-      () => [...document.querySelectorAll("#featured-projects .works-card")]
-        .filter((element) => element.checkVisibility()).length === 3,
+      () => document.querySelectorAll("#featured-projects .works-card").length === 3,
       page,
       false,
     );
 
-    let homeProjects = page.locator("#featured-projects .works-card:visible");
+    let homeProjects = page.locator("#featured-projects .works-card");
     assert.equal(await homeProjects.count(), 3);
     assert.deepEqual(await homeProjects.locator(".works-card__title").allTextContents(), [
       "首页精选作品 2", "首页精选作品 1", "首页精选作品 3",
@@ -1097,8 +1111,15 @@ test("站长分别管理首页精选顺序与上限，撤下内容可恢复位�
     assert.equal(await internalHomeCard.locator(".works-card__link").getAttribute("href"), `/zh/projects/${projectIds[0]}`);
     assert.equal(await externalHomeCard.locator(".works-card__link").getAttribute("href"), `https://${projectIds[1]}.example/open`);
 
-    await page.goto(`${origin}/zh/projects`);
+    await page.close();
+    page = await context.newPage();
+    await page.goto(`${origin}/zh/projects`, { waitUntil: "commit" });
     const projectList = page.locator(".works-grid .works-card");
+    await page.waitForFunction(
+      () => [...document.querySelectorAll(".works-grid .works-card")].some((card) => card.textContent.includes("首页精选作品 4")),
+      null,
+      { timeout: 15_000 },
+    );
     assert.equal(await projectList.filter({ hasText: "首页精选作品 4" }).count(), 1, "未精选作品仍保留在作品列表");
     assert.equal(
       await projectList.filter({ hasText: "首页精选作品 1" }).locator(".works-card__link").getAttribute("href"),
@@ -1117,12 +1138,11 @@ test("站长分别管理首页精选顺序与上限，撤下内容可恢复位�
     page = await navigateToHome(
       context,
       "/zh",
-      () => [...document.querySelectorAll("#featured-articles .home-featured__article")]
-        .filter((element) => element.checkVisibility()).length === 4,
+      () => document.querySelectorAll("#featured-articles .home-featured__article").length === 4,
       page,
       false,
     );
-    articleCards = page.locator("#featured-articles .home-featured__article:visible");
+    articleCards = page.locator("#featured-articles .home-featured__article");
     assert.deepEqual(await articleCards.locator(".article-card__title").allTextContents(), [
       "首页精选文章 1", "首页精选文章 3", "首页精选文章 4", "首页精选文章 6",
     ]);
@@ -1149,12 +1169,11 @@ test("站长分别管理首页精选顺序与上限，撤下内容可恢复位�
     page = await navigateToHome(
       context,
       "/zh",
-      () => [...document.querySelectorAll("#featured-articles .article-card__title")]
-        .find((element) => element.checkVisibility())?.textContent === "首页精选文章 2",
+      () => document.querySelector("#featured-articles .article-card__title")?.textContent === "首页精选文章 2",
       page,
       false,
     );
-    articleCards = page.locator("#featured-articles .home-featured__article:visible");
+    articleCards = page.locator("#featured-articles .home-featured__article");
     assert.equal(await articleCards.locator(".article-card__title").first().textContent(), "首页精选文章 2");
 
     adminHtml = await (await fetch(`${origin}/admin/projects`, { headers: { cookie } })).text();
@@ -1169,12 +1188,11 @@ test("站长分别管理首页精选顺序与上限，撤下内容可恢复位�
     page = await navigateToHome(
       context,
       "/zh",
-      () => [...document.querySelectorAll("#featured-projects .works-card")]
-        .filter((element) => element.checkVisibility()).length === 2,
+      () => document.querySelectorAll("#featured-projects .works-card").length === 2,
       page,
       false,
     );
-    homeProjects = page.locator("#featured-projects .works-card:visible");
+    homeProjects = page.locator("#featured-projects .works-card");
     assert.deepEqual(await homeProjects.locator(".works-card__title").allTextContents(), [
       "首页精选作品 1", "首页精选作品 3",
     ]);
@@ -1191,12 +1209,11 @@ test("站长分别管理首页精选顺序与上限，撤下内容可恢复位�
     page = await navigateToHome(
       context,
       "/zh",
-      () => [...document.querySelectorAll("#featured-projects .works-card__title")]
-        .find((element) => element.checkVisibility())?.textContent === "首页精选作品 2",
+      () => document.querySelector("#featured-projects .works-card__title")?.textContent === "首页精选作品 2",
       page,
       false,
     );
-    homeProjects = page.locator("#featured-projects .works-card:visible");
+    homeProjects = page.locator("#featured-projects .works-card");
     assert.equal(await homeProjects.locator(".works-card__title").first().textContent(), "首页精选作品 2");
   } finally {
     await context?.close();
@@ -1257,26 +1274,15 @@ test("站点设置在中英文首页共用原文并按序展示", async () => {
   }
 });
 
-test("首页滚动提示保留英文且不响应点击或进入焦点顺序", async () => {
+test("首页没有精选文章时隐藏滚动提示", async () => {
   const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
   const page = await context.newPage();
 
   try {
-    await page.goto(`${origin}/zh`);
-    const prompt = page.locator(".home-hero__explore");
-    assert.equal((await prompt.locator(".home-hero__explore-label").innerText()).trim(), "Explore Below ↓");
-    assert.equal((await prompt.locator(".home-hero__explore-description").innerText()).trim(), "向下浏览精选文章");
-    assert.equal(await prompt.evaluate((element) => element.tagName), "P");
-    assert.equal(await prompt.getAttribute("aria-hidden"), "true");
-    assert.equal(await prompt.getAttribute("tabindex"), null);
-    assert.equal(await prompt.getAttribute("data-scroll-target"), "#featured-articles");
-    assert.equal(await prompt.locator("a, button, [tabindex]").count(), 0);
-
-    await page.goto(`${origin}/en`);
-    assert.equal(
-      (await page.locator(".home-hero__explore-description").innerText()).trim(),
-      "Scroll to explore featured articles",
-    );
+    for (const locale of ["zh", "en"]) {
+      await page.goto(`${origin}/${locale}`);
+      assert.equal(await page.locator(".home-hero__explore").count(), 0);
+    }
   } finally {
     await context.close();
   }
@@ -1348,10 +1354,12 @@ test("首页文案和入口随滚动淡出，手机页面仍可正常滚动", { 
 
 // CI 无 GPU 软渲染单帧与三次截图耗时较长，预留足够超时避免级联污染后续用例。
 test("桌面角色随指针移动并在指针离开后回到自然姿态", { timeout: 90_000 }, async () => {
-  const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+  // shortcut: SwiftShader 下以 1/8 DPR 检查点云，像素差按 64 倍映射回原阈值；CI 有 GPU 加速后恢复 DPR 1。
+  const context = await browser.newContext({ viewport: { width: 1280, height: 800 }, deviceScaleFactor: 0.125 });
   const page = await context.newPage();
 
   try {
+    await preserveCanvasPixels(page);
     await page.goto(`${origin}/zh`);
     await page.waitForFunction(
       () => document.querySelector(".home-hero__character")?.dataset.characterStage === "rendered",
@@ -1359,18 +1367,18 @@ test("桌面角色随指针移动并在指针离开后回到自然姿态", { tim
       { timeout: 15_000 },
     );
     const canvas = page.locator(".home-character__canvas canvas");
-    await page.mouse.move(0, 0);
+    await canvas.waitFor({ state: "attached", timeout: 15_000 });
     await page.waitForTimeout(800);
-    const natural = await canvas.screenshot();
+    const natural = await readCanvasPixels(canvas);
 
     await page.mouse.move(850, 220);
     await page.waitForTimeout(350);
-    const following = await canvas.screenshot();
+    const following = await readCanvasPixels(canvas);
     assert.ok(!following.equals(natural), "指针移动应改变角色绘制结果");
 
     await page.mouse.move(0, 0);
     await page.waitForTimeout(1_200);
-    const returned = await canvas.screenshot();
+    const returned = await readCanvasPixels(canvas);
     assert.ok(!returned.equals(following), "指针离开后角色应开始回到自然姿态");
   } finally {
     await context.close();
@@ -1378,66 +1386,45 @@ test("桌面角色随指针移动并在指针离开后回到自然姿态", { tim
 });
 
 test("桌面角色只在进入流程区后切换对应阶段姿态", { timeout: 90_000 }, async () => {
-  const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+  const context = await browser.newContext({ viewport: { width: 1280, height: 800 }, deviceScaleFactor: 0.125 });
   const page = await context.newPage();
 
   try {
+    await preserveCanvasPixels(page);
     await page.goto(`${origin}/zh`);
     await page.waitForFunction(
       () => document.querySelector(".home-hero__character")?.dataset.characterStage === "rendered",
       null,
       { timeout: 15_000 },
     );
+    await page.locator(".home-process").waitFor({ state: "attached", timeout: 15_000 });
     await page.mouse.move(0, 0);
     await page.waitForTimeout(1_000);
     const processTop = await page.locator(".home-process").evaluate(
       (element) => element.getBoundingClientRect().top + scrollY,
     );
     const canvas = page.locator(".home-character__canvas canvas");
-    const changedPixels = (first, second) => page.evaluate(async ([a, b]) => {
-      const decode = async (source) => {
-        const response = await fetch(`data:image/png;base64,${source}`);
-        return createImageBitmap(await response.blob());
-      };
-      const [left, right] = await Promise.all([decode(a), decode(b)]);
-      const image = document.createElement("canvas");
-      image.width = left.width;
-      image.height = left.height;
-      const context = image.getContext("2d", { willReadFrequently: true });
-      context.drawImage(left, 0, 0);
-      const firstPixels = context.getImageData(0, 0, image.width, image.height).data;
-      context.clearRect(0, 0, image.width, image.height);
-      context.drawImage(right, 0, 0);
-      const secondPixels = context.getImageData(0, 0, image.width, image.height).data;
-      let changed = 0;
-      for (let index = 0; index < firstPixels.length; index += 4) {
-        if (Math.abs(firstPixels[index] - secondPixels[index]) +
-            Math.abs(firstPixels[index + 1] - secondPixels[index + 1]) +
-            Math.abs(firstPixels[index + 2] - secondPixels[index + 2]) > 60) changed++;
-      }
-      return changed;
-    }, [first.toString("base64"), second.toString("base64")]);
-
+    await canvas.waitFor({ state: "attached", timeout: 15_000 });
     await page.evaluate(() => {
       document.querySelector(".home-process")?.removeAttribute("data-home-motion");
       window.dispatchEvent(new Event("scroll"));
     });
     await page.waitForTimeout(1_000);
-    const heroPose = await canvas.screenshot();
+    const heroPose = await readCanvasPixels(canvas);
 
     await page.evaluate(() => {
       document.querySelector(".home-process")?.setAttribute("data-home-motion", "process");
       window.dispatchEvent(new Event("scroll"));
     });
     await page.waitForTimeout(1_000);
-    const beforeProcess = await canvas.screenshot();
-    const earlyMovement = await changedPixels(heroPose, beforeProcess);
+    const beforeProcess = await readCanvasPixels(canvas);
+    const earlyMovement = countChangedPixels(heroPose, beforeProcess);
     assert.ok(earlyMovement < 10_000, `流程区尚未进入视口时姿态不应切换，像素变化 ${earlyMovement} (top=${processTop})`);
 
     await page.evaluate((top) => window.scrollTo({ top, behavior: "instant" }), processTop + 300);
     await page.waitForTimeout(1_000);
-    const inProcess = await canvas.screenshot();
-    const stageMovement = await changedPixels(heroPose, inProcess);
+    const inProcess = await readCanvasPixels(canvas);
+    const stageMovement = countChangedPixels(heroPose, inProcess);
     assert.ok(stageMovement > 10_000, `进入流程区后角色应切换到该阶段姿态，像素变化 ${stageMovement}`);
   } finally {
     await context.close();
@@ -1771,10 +1758,7 @@ test("浏览器不支持 WebGL 时保留静态角色图和首页入口", { timeo
       { timeout: 5_000 },
     );
     assert.equal(await page.locator(".home-hero__character img").isVisible(), true);
-    assert.equal(
-      await page.getByRole("link", { name: "浏览文章", exact: true }).filter({ visible: true }).first().isVisible(),
-      true,
-    );
+    assert.equal(await page.locator(".home-hero__primary").isVisible(), true);
   } finally {
     await context.close();
   }

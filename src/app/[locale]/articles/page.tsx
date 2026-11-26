@@ -1,8 +1,8 @@
 import { connection } from "next/server";
 import type { Metadata } from "next";
 import { getTranslations } from "next-intl/server";
-import { Suspense } from "react";
 import { Link } from "@/i18n/navigation";
+import { Suspense } from "react";
 import {
   ARTICLE_BATCH_SIZE,
   MAX_ARTICLE_LIMIT,

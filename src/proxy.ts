@@ -20,65 +20,49 @@ export default async function proxy(request: NextRequest) {
     return new NextResponse(null, { status: 404 });
   }
 
-  // The Proxy preflight keeps withdrawn articles from receiving a streamed 200 response.
-  // shortcut: checks PostgreSQL for each detail GET/HEAD until Next supports pre-stream cache checks.
-  const articleRoute = pathname.match(/^\/(zh|en)\/articles\/([^/]+)\/?$/);
-  if (articleRoute && (request.method === "GET" || request.method === "HEAD")) {
-    const [, locale, slug] = articleRoute;
-    const { isPublishedArticleSlug } = await import("@/server/articles");
-    if (!(await isPublishedArticleSlug(slug))) return articleNotFound(locale);
-  }
+  // Cache Components sends the shell before a request-time notFound() can set the HTTP status.
+  // shortcut: this ID-only check queries PostgreSQL per detail request until Next supports a cache-aware pre-stream check.
+  if (request.method === "GET" || request.method === "HEAD") {
+    const articleRoute = pathname.match(/^\/(zh|en)\/articles\/([^/]+)\/?$/);
+    if (articleRoute) {
+      const [, locale, slug] = articleRoute;
+      const { isPublishedArticleSlug } = await import("@/server/articles");
+      if (!(await isPublishedArticleSlug(slug))) return publicNotFound(locale, "articles");
+    }
 
-  const pathSegments = pathname.split("/").filter(Boolean);
-  if (pathSegments.length === 3 && pathSegments[1] === "projects" &&
-      (request.method === "GET" || request.method === "HEAD")) {
-    const response = await requirePublishedProjectAccess(pathSegments[0], pathSegments[2]);
-    if (response) return response;
+    const projectRoute = pathname.match(/^\/(zh|en)\/projects\/([^/]+)\/?$/);
+    if (projectRoute) {
+      const [, locale, slug] = projectRoute;
+      const { isPublishedProjectSlug } = await import("@/server/projects");
+      if (!(await isPublishedProjectSlug(slug))) return publicNotFound(locale, "projects");
+    }
   }
 
   return handleInternationalizedRouting(request);
 }
 
-function articleNotFound(locale: string) {
-  const content = locale === "en"
-    ? { title: "Article not found", message: "This article is unavailable.", back: "Browse articles" }
-    : { title: "文章不存在", message: "这篇文章当前不可用。", back: "返回文章列表" };
-  const body = `<!doctype html><html lang="${locale}"><head><meta charset="utf-8"><meta name="robots" content="noindex"><title>${content.title}</title></head><body><main><h1>404 · ${content.title}</h1><p>${content.message}</p><a href="/${locale}/articles">${content.back}</a></main></body></html>`;
+async function publicNotFound(locale: string, section: "articles" | "projects") {
+  const messages = locale === "en"
+    ? (await import("@/messages/en.json")).default
+    : (await import("@/messages/zh.json")).default;
+  const copy = section === "articles"
+    ? {
+        title: messages.Articles.notFoundTitle,
+        description: messages.Articles.notFoundDescription,
+        back: messages.Articles.back,
+      }
+    : {
+        title: messages.Projects.notFoundTitle,
+        description: messages.Projects.notFoundDescription,
+        back: messages.Projects.backToWorks,
+      };
+  const body = `<!doctype html><html lang="${locale}"><head><meta charset="utf-8"><meta name="robots" content="noindex"><title>404 · ${copy.title}</title></head><body><main><p>404</p><h1>${copy.title}</h1><p>${copy.description}</p><a href="/${locale}/${section}">${copy.back}</a></main></body></html>`;
 
   return new NextResponse(body, {
     status: 404,
     headers: {
       "cache-control": "no-store",
       "content-type": "text/html; charset=utf-8",
-    },
-  });
-}
-
-async function requirePublishedProjectAccess(locale: string, slug: string) {
-  const { getPrisma } = await import("@/server/db");
-  const project = await getPrisma().project.findFirst({
-    where: { slug, status: "PUBLISHED", cardTarget: "INTERNAL" },
-    select: { id: true },
-  });
-  if (project) return null;
-
-  const content = locale === "en"
-    ? {
-        title: "This project is unavailable",
-        description: "The project may be unpublished, withdrawn, or the address may be incorrect.",
-        link: "Back to works",
-      }
-    : {
-        title: "页面暂不可用",
-        description: "这个作品可能尚未公开、已撤下，或地址有误。",
-        link: "返回作品列表",
-      };
-  const html = `<!doctype html><html lang="${locale}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>404 · ${content.title}</title><style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#101012;color:#f4f4f6;font:16px/1.65 system-ui,sans-serif}main{max-width:38rem;padding:2rem}p{color:#b1b2b9}a{display:inline-flex;min-height:44px;align-items:center;color:#d7effa;text-underline-offset:.25em}</style></head><body><main><p>404</p><h1>${content.title}</h1><p>${content.description}</p><a href="/${locale}/projects">${content.link}</a></main></body></html>`;
-  return new NextResponse(html, {
-    status: 404,
-    headers: {
-      "content-type": "text/html; charset=utf-8",
-      "cache-control": "no-store",
     },
   });
 }

@@ -21,7 +21,6 @@ export async function getPublishedArticles(
   const prisma = getPrisma();
   const normalizedQuery = normalizeSearchQuery(query);
   const safeLimit = Math.min(Math.max(limit, ARTICLE_BATCH_SIZE), MAX_ARTICLE_LIMIT);
-
   const where = {
     status: "PUBLISHED" as const,
     slug: { not: null },
@@ -60,6 +59,21 @@ export async function getPublishedArticles(
       (left.id > right.id ? -1 : left.id < right.id ? 1 : 0),
     )
     .slice(0, take);
+}
+
+export async function getPublishedArticleSitemapEntries() {
+  "use cache";
+  cacheTag("articles");
+
+  return getPrisma().article.findMany({
+    where: {
+      status: "PUBLISHED",
+      slug: { not: null },
+      firstPublishedAt: { not: null },
+    },
+    select: { slug: true, bodyLanguage: true, updatedAt: true },
+    orderBy: [{ firstPublishedAt: "desc" }],
+  });
 }
 
 export async function getFeaturedArticles() {
@@ -130,6 +144,20 @@ export async function getPublishedArticle(slug: string) {
   });
 }
 
+export async function isPublishedArticleSlug(slug: string) {
+  const article = await getPrisma().article.findFirst({
+    where: {
+      slug,
+      status: "PUBLISHED",
+      firstPublishedAt: { not: null },
+      bodyLanguage: { not: "" },
+    },
+    select: { id: true },
+  });
+
+  return Boolean(article);
+}
+
 export async function getAdminArticles() {
   "use cache";
   cacheTag("articles");
@@ -144,20 +172,6 @@ export async function getAdminArticle(id: string) {
   cacheTag("articles", `article-id-${id}`);
 
   return getPrisma().article.findUnique({ where: { id }, include: { tags: true } });
-}
-
-export async function isPublishedArticleSlug(slug: string) {
-  const article = await getPrisma().article.findFirst({
-    where: {
-      slug,
-      status: "PUBLISHED",
-      firstPublishedAt: { not: null },
-      bodyLanguage: { not: "" },
-    },
-    select: { id: true },
-  });
-
-  return Boolean(article);
 }
 
 export function getArticleImageUrl(key: string | null | undefined) {

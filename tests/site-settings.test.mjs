@@ -28,7 +28,7 @@ test("站点联系入口拒绝 HTTP 和非邮件的 mailto 地址", () => {
   for (const contactUrl of ["http://example.com", "mailto:not-an-email"]) {
     const result = validateSiteSettings({ ...validSettings, contactUrl });
     assert.equal(result.ok, false);
-    assert.equal(result.errors.contactUrl, "请输入 mailto: 邮箱地址或 HTTPS 地址。");
+    assert.equal(result.errors.contactUrl, "contactUrlInvalid");
   }
 });
 

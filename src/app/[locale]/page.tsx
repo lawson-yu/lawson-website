@@ -101,10 +101,6 @@ export default async function HomePage({ params }: HomePageProps) {
         >
           <HomeHeroContent />
         </Suspense>
-        <p className="home-hero__explore" data-scroll-target="#featured-articles" aria-hidden="true">
-          <span className="home-hero__explore-label">{t("explore")}</span>
-          <span className="home-hero__explore-description">{t("exploreDescription")}</span>
-        </p>
       </section>
 
       <Suspense fallback={null}>
@@ -217,9 +213,11 @@ async function HomeFeaturedContent({ locale }: { locale: string }) {
 }
 
 async function HomeHeroContent() {
-  const [t, siteSetting] = await Promise.all([
+  await connection();
+  const [t, siteSetting, articles] = await Promise.all([
     getTranslations("Home"),
     getSiteSetting(),
+    getFeaturedArticles(),
   ]);
 
   return (
@@ -238,6 +236,12 @@ async function HomeHeroContent() {
           </a>
         )}
       </div>
+      {articles.length > 0 && (
+        <p className="home-hero__explore" data-scroll-target="#featured-articles" aria-hidden="true">
+          <span className="home-hero__explore-label">{t("explore")}</span>
+          <span className="home-hero__explore-description">{t("exploreDescription")}</span>
+        </p>
+      )}
     </div>
   );
 }

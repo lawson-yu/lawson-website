@@ -1,7 +1,9 @@
 import type { MetadataRoute } from "next";
 import { connection } from "next/server";
+import { getContentLocale } from "@/lib/content-language";
 import { getSiteOrigin } from "@/lib/seo";
-import { getPrisma } from "@/server/db";
+import { getPublishedArticleSitemapEntries } from "@/server/articles";
+import { getPublishedProjectSitemapEntries } from "@/server/projects";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   await connection();
@@ -38,31 +40,15 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   if (!process.env.DATABASE_URL) return staticEntries;
 
   try {
-    const prisma = getPrisma();
     const [articles, projects] = await Promise.all([
-      prisma.article.findMany({
-        where: {
-          status: "PUBLISHED",
-          slug: { not: null },
-          firstPublishedAt: { not: null },
-        },
-        select: { slug: true, bodyLanguage: true, updatedAt: true },
-        orderBy: [{ firstPublishedAt: "desc" }],
-      }),
-      prisma.project.findMany({
-        where: {
-          status: "PUBLISHED",
-          cardTarget: "INTERNAL",
-        },
-        select: { slug: true, contentLanguage: true, updatedAt: true },
-        orderBy: [{ firstPublishedAt: "desc" }],
-      }),
+      getPublishedArticleSitemapEntries(),
+      getPublishedProjectSitemapEntries(),
     ]);
 
     const articleEntries: MetadataRoute.Sitemap = articles
       .filter((article): article is typeof article & { slug: string } => Boolean(article.slug))
       .map((article) => {
-        const bodyLocale = article.bodyLanguage === "en" ? "en" : "zh";
+        const bodyLocale = getContentLocale(article.bodyLanguage);
         return {
           url: `${origin}/${bodyLocale}/articles/${article.slug}`,
           lastModified: article.updatedAt,
@@ -76,7 +62,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       });
 
     const projectEntries: MetadataRoute.Sitemap = projects.map((project) => {
-      const bodyLocale = project.contentLanguage === "en" ? "en" : "zh";
+      const bodyLocale = getContentLocale(project.contentLanguage);
       return {
         url: `${origin}/${bodyLocale}/projects/${project.slug}`,
         lastModified: project.updatedAt,

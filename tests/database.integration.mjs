@@ -275,7 +275,7 @@ test("临时数据库可以迁移、重复 seed、备份并恢复全部作品", 
       title: "已发布的文章",
       excerpt: "文章摘要。",
       bodyLanguage: "zh",
-      body: "## 主要内容\n\n正文中的可见内容。",
+      body: "## 主要内容\n\n正文中的可见内容。\n\nSetext Heading\n---",
       coverImageKey: "articles/test-cover.webp",
       status: "PUBLISHED",
       firstPublishedAt: new Date("2026-11-20T00:00:00.000Z"),
@@ -349,7 +349,7 @@ test("临时数据库可以迁移、重复 seed、备份并恢复全部作品", 
   assert.equal(actionArticle?.slug, actionResult.slug);
   assert.equal(actionArticle?.status, "PUBLISHED", "Server Action 应完成撤下后的再次发布");
   await assert.rejects(prisma.$queryRaw`SELECT pg_sleep(10)`, /timeout|timed out/i);
-  assert.equal((await prisma.project.count()), 11);
+  assert.equal((await prisma.project.count()), 13);
 
   mkdirSync(backupDirectory, { recursive: true });
   const oldDumps = ["20000101", "20010101", "20020101"].map((date) => `lawson_website-${date}T000000Z.dump`);
