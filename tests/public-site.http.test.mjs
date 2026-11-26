@@ -176,10 +176,11 @@ async function startServer(authenticated = false) {
   origin = `http://127.0.0.1:${port}`;
   serverOutput = "";
   server = spawn(
-    "pnpm",
-    ["exec", "next", "dev", "--hostname", "127.0.0.1", "--port", String(port)],
+    process.execPath,
+    [join(root, "node_modules", "next", "dist", "bin", "next"), "dev", "--hostname", "127.0.0.1", "--port", String(port)],
     {
       cwd: projectRoot,
+      detached: true,
       stdio: ["ignore", "pipe", "pipe"],
       env: {
         ...process.env,
@@ -215,13 +216,27 @@ async function startServer(authenticated = false) {
   throw new Error(`Next.js 启动超时：\n${serverOutput}`);
 }
 
+function signalServerGroup(signal) {
+  if (!server?.pid) return;
+  try {
+    process.kill(-server.pid, signal);
+  } catch (error) {
+    if (error.code !== "ESRCH") throw error;
+  }
+}
+
 async function stopServer() {
-  if (!server || server.exitCode !== null) {
+  if (!server) return;
+  if (server.exitCode !== null) {
+    signalServerGroup("SIGKILL");
     server = undefined;
     return;
   }
-  server.kill("SIGTERM");
-  await Promise.race([once(server, "exit"), delay(5_000)]);
+  const exit = once(server, "exit");
+  signalServerGroup("SIGTERM");
+  await Promise.race([exit, delay(5_000)]);
+  signalServerGroup("SIGKILL");
+  if (server.exitCode === null) await exit;
   server = undefined;
 }
 
@@ -308,6 +323,56 @@ function getProjectForm(html, predicate) {
       name,
       value.replaceAll("&quot;", '"').replaceAll("&#x27;", "'").replaceAll("&amp;", "&"),
     ]);
+}
+
+async function navigateToHome(context, path, contentReady, previousPage) {
+  await previousPage?.close();
+  const page = await context.newPage();
+  await page.goto(`${origin}${path}`, { waitUntil: "commit" });
+  await page.waitForFunction(
+    () => document.querySelectorAll("[data-home-content-slot]").length === 1 &&
+      document.querySelector(".home-hero__character")?.getAttribute("data-character-stage") === "rendered",
+    null,
+    { timeout: 15_000 },
+  );
+  if (contentReady) await page.waitForFunction(contentReady, null, { timeout: 15_000 });
+  return page;
+}
+
+async function preserveCanvasPixels(page) {
+  await page.addInitScript(() => {
+    const getContext = HTMLCanvasElement.prototype.getContext;
+    HTMLCanvasElement.prototype.getContext = function (type, attributes) {
+      return getContext.call(this, type, type === "webgl2" ? { ...attributes, preserveDrawingBuffer: true } : attributes);
+    };
+  });
+}
+
+async function readCanvasPixels(canvas) {
+  const base64 = await canvas.evaluate((element) => {
+    const gl = element.getContext("webgl2");
+    if (!gl?.getContextAttributes()?.preserveDrawingBuffer) throw new Error("WebGL2 点云画布不可保留绘制缓冲");
+    const { drawingBufferWidth: width, drawingBufferHeight: height } = gl;
+    const pixels = new Uint8Array(width * height * 4);
+    gl.readPixels(0, 0, width, height, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
+    let binary = "";
+    for (let index = 0; index < pixels.length; index += 0x8000) {
+      binary += String.fromCharCode(...pixels.subarray(index, index + 0x8000));
+    }
+    return btoa(binary);
+  });
+  return Buffer.from(base64, "base64");
+}
+
+function countChangedPixels(first, second) {
+  assert.equal(first.length, second.length, "点云像素尺寸应保持一致");
+  let changed = 0;
+  for (let index = 0; index < first.length; index += 4) {
+    if (Math.abs(first[index] - second[index]) +
+        Math.abs(first[index + 1] - second[index + 1]) +
+        Math.abs(first[index + 2] - second[index + 2]) > 60) changed++;
+  }
+  return changed * 64;
 }
 
 async function submitProjectAction(path, hiddenFields, values, cookie) {
@@ -982,8 +1047,12 @@ test("站长分别管理首页精选顺序与上限，撤下内容可恢复位�
     await response.arrayBuffer();
 
     context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
-    const page = await context.newPage();
-    await page.goto(`${origin}/zh`, { waitUntil: "networkidle" });
+    let page = await navigateToHome(
+      context,
+      "/zh",
+      () => document.querySelectorAll("#featured-articles .home-featured__article").length === 5 &&
+        document.querySelectorAll("#featured-projects .works-card").length === 3,
+    );
     const prompt = page.locator(".home-hero__explore");
     assert.equal(await prompt.count(), 1);
     assert.equal((await prompt.locator(".home-hero__explore-label").innerText()).trim(), "Explore Below ↓");
@@ -1005,12 +1074,26 @@ test("站长分别管理首页精选顺序与上限，撤下内容可恢复位�
       ["featured-articles", "particle-transition", "home-projects"],
     );
 
-    await page.goto(`${origin}/en`, { waitUntil: "networkidle" });
+    page = await navigateToHome(
+      context,
+      "/en",
+      () => document.querySelectorAll("#featured-articles .article-card__title").length === 5 &&
+        document.querySelector("#featured-projects-title")?.textContent === "Selected works",
+      page,
+    );
     await page.getByRole("heading", { name: "Featured articles" }).waitFor();
-    assert.equal(await page.locator(".home-hero__explore-description").innerText(), "Scroll to explore featured articles");
+    assert.equal(
+      await page.getByRole("region", { name: "LAWSON" }).getByText("Scroll to explore featured articles").innerText(),
+      "Scroll to explore featured articles",
+    );
     assert.equal(await page.locator("#featured-articles .article-card__title").count(), 5);
     assert.equal(await page.locator("#featured-projects-title").innerText(), "Selected works");
-    await page.goto(`${origin}/zh`, { waitUntil: "networkidle" });
+    page = await navigateToHome(
+      context,
+      "/zh",
+      () => document.querySelectorAll("#featured-projects .works-card").length === 3,
+      page,
+    );
 
     let homeProjects = page.locator("#featured-projects .works-card");
     assert.equal(await homeProjects.count(), 3);
@@ -1022,8 +1105,15 @@ test("站长分别管理首页精选顺序与上限，撤下内容可恢复位�
     assert.equal(await internalHomeCard.locator(".works-card__link").getAttribute("href"), `/zh/projects/${projectIds[0]}`);
     assert.equal(await externalHomeCard.locator(".works-card__link").getAttribute("href"), `https://${projectIds[1]}.example/open`);
 
-    await page.goto(`${origin}/zh/projects`, { waitUntil: "networkidle" });
+    await page.close();
+    page = await context.newPage();
+    await page.goto(`${origin}/zh/projects`, { waitUntil: "commit" });
     const projectList = page.locator(".works-grid .works-card");
+    await page.waitForFunction(
+      () => [...document.querySelectorAll(".works-grid .works-card")].some((card) => card.textContent.includes("首页精选作品 4")),
+      null,
+      { timeout: 15_000 },
+    );
     assert.equal(await projectList.filter({ hasText: "首页精选作品 4" }).count(), 1, "未精选作品仍保留在作品列表");
     assert.equal(
       await projectList.filter({ hasText: "首页精选作品 1" }).locator(".works-card__link").getAttribute("href"),
@@ -1039,7 +1129,12 @@ test("站长分别管理首页精选顺序与上限，撤下内容可恢复位�
     response = await submitProjectAction(`/admin/articles/${articleIds[1]}`, form, { intent: "withdraw" }, cookie);
     assert.ok(response.status < 400, `撤下精选文章失败：${response.status}`);
     await response.arrayBuffer();
-    await page.goto(`${origin}/zh`, { waitUntil: "networkidle" });
+    page = await navigateToHome(
+      context,
+      "/zh",
+      () => document.querySelectorAll("#featured-articles .home-featured__article").length === 4,
+      page,
+    );
     articleCards = page.locator("#featured-articles .home-featured__article");
     assert.deepEqual(await articleCards.locator(".article-card__title").allTextContents(), [
       "首页精选文章 1", "首页精选文章 3", "首页精选文章 4", "首页精选文章 6",
@@ -1064,7 +1159,12 @@ test("站长分别管理首页精选顺序与上限，撤下内容可恢复位�
     }, cookie);
     assert.ok(response.status < 400, `重新发布精选文章失败：${response.status}`);
     await response.arrayBuffer();
-    await page.goto(`${origin}/zh`, { waitUntil: "networkidle" });
+    page = await navigateToHome(
+      context,
+      "/zh",
+      () => document.querySelector("#featured-articles .article-card__title")?.textContent === "首页精选文章 2",
+      page,
+    );
     articleCards = page.locator("#featured-articles .home-featured__article");
     assert.equal(await articleCards.locator(".article-card__title").first().textContent(), "首页精选文章 2");
 
@@ -1077,7 +1177,12 @@ test("站长分别管理首页精选顺序与上限，撤下内容可恢复位�
     response = await submitProjectAction("/admin/projects", form, { id: projectIds[1] }, cookie);
     assert.ok(response.status < 400, `撤下精选作品失败：${response.status}`);
     await response.arrayBuffer();
-    await page.goto(`${origin}/zh`, { waitUntil: "networkidle" });
+    page = await navigateToHome(
+      context,
+      "/zh",
+      () => document.querySelectorAll("#featured-projects .works-card").length === 2,
+      page,
+    );
     homeProjects = page.locator("#featured-projects .works-card");
     assert.deepEqual(await homeProjects.locator(".works-card__title").allTextContents(), [
       "首页精选作品 1", "首页精选作品 3",
@@ -1092,7 +1197,12 @@ test("站长分别管理首页精选顺序与上限，撤下内容可恢复位�
     response = await submitProjectAction("/admin/projects", form, { id: projectIds[1] }, cookie);
     assert.ok(response.status < 400, `重新发布精选作品失败：${response.status}`);
     await response.arrayBuffer();
-    await page.goto(`${origin}/zh`, { waitUntil: "networkidle" });
+    page = await navigateToHome(
+      context,
+      "/zh",
+      () => document.querySelector("#featured-projects .works-card__title")?.textContent === "首页精选作品 2",
+      page,
+    );
     homeProjects = page.locator("#featured-projects .works-card");
     assert.equal(await homeProjects.locator(".works-card__title").first().textContent(), "首页精选作品 2");
   } finally {
@@ -1234,10 +1344,12 @@ test("首页文案和入口随滚动淡出，手机页面仍可正常滚动", { 
 
 // CI 无 GPU 软渲染单帧与三次截图耗时较长，预留足够超时避免级联污染后续用例。
 test("桌面角色随指针移动并在指针离开后回到自然姿态", { timeout: 90_000 }, async () => {
-  const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+  // shortcut: SwiftShader 下以 1/8 DPR 检查点云，像素差按 64 倍映射回原阈值；CI 有 GPU 加速后恢复 DPR 1。
+  const context = await browser.newContext({ viewport: { width: 1280, height: 800 }, deviceScaleFactor: 0.125 });
   const page = await context.newPage();
 
   try {
+    await preserveCanvasPixels(page);
     await page.goto(`${origin}/zh`);
     await page.waitForFunction(
       () => document.querySelector(".home-hero__character")?.dataset.characterStage === "rendered",
@@ -1245,18 +1357,18 @@ test("桌面角色随指针移动并在指针离开后回到自然姿态", { tim
       { timeout: 15_000 },
     );
     const canvas = page.locator(".home-character__canvas canvas");
-    await page.mouse.move(0, 0);
+    await canvas.waitFor({ state: "attached", timeout: 15_000 });
     await page.waitForTimeout(800);
-    const natural = await canvas.screenshot();
+    const natural = await readCanvasPixels(canvas);
 
     await page.mouse.move(850, 220);
     await page.waitForTimeout(350);
-    const following = await canvas.screenshot();
+    const following = await readCanvasPixels(canvas);
     assert.ok(!following.equals(natural), "指针移动应改变角色绘制结果");
 
     await page.mouse.move(0, 0);
     await page.waitForTimeout(1_200);
-    const returned = await canvas.screenshot();
+    const returned = await readCanvasPixels(canvas);
     assert.ok(!returned.equals(following), "指针离开后角色应开始回到自然姿态");
   } finally {
     await context.close();
@@ -1264,66 +1376,45 @@ test("桌面角色随指针移动并在指针离开后回到自然姿态", { tim
 });
 
 test("桌面角色只在进入流程区后切换对应阶段姿态", { timeout: 90_000 }, async () => {
-  const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+  const context = await browser.newContext({ viewport: { width: 1280, height: 800 }, deviceScaleFactor: 0.125 });
   const page = await context.newPage();
 
   try {
+    await preserveCanvasPixels(page);
     await page.goto(`${origin}/zh`);
     await page.waitForFunction(
       () => document.querySelector(".home-hero__character")?.dataset.characterStage === "rendered",
       null,
       { timeout: 15_000 },
     );
+    await page.locator(".home-process").waitFor({ state: "attached", timeout: 15_000 });
     await page.mouse.move(0, 0);
     await page.waitForTimeout(1_000);
     const processTop = await page.locator(".home-process").evaluate(
       (element) => element.getBoundingClientRect().top + scrollY,
     );
     const canvas = page.locator(".home-character__canvas canvas");
-    const changedPixels = (first, second) => page.evaluate(async ([a, b]) => {
-      const decode = async (source) => {
-        const response = await fetch(`data:image/png;base64,${source}`);
-        return createImageBitmap(await response.blob());
-      };
-      const [left, right] = await Promise.all([decode(a), decode(b)]);
-      const image = document.createElement("canvas");
-      image.width = left.width;
-      image.height = left.height;
-      const context = image.getContext("2d", { willReadFrequently: true });
-      context.drawImage(left, 0, 0);
-      const firstPixels = context.getImageData(0, 0, image.width, image.height).data;
-      context.clearRect(0, 0, image.width, image.height);
-      context.drawImage(right, 0, 0);
-      const secondPixels = context.getImageData(0, 0, image.width, image.height).data;
-      let changed = 0;
-      for (let index = 0; index < firstPixels.length; index += 4) {
-        if (Math.abs(firstPixels[index] - secondPixels[index]) +
-            Math.abs(firstPixels[index + 1] - secondPixels[index + 1]) +
-            Math.abs(firstPixels[index + 2] - secondPixels[index + 2]) > 60) changed++;
-      }
-      return changed;
-    }, [first.toString("base64"), second.toString("base64")]);
-
+    await canvas.waitFor({ state: "attached", timeout: 15_000 });
     await page.evaluate(() => {
       document.querySelector(".home-process")?.removeAttribute("data-home-motion");
       window.dispatchEvent(new Event("scroll"));
     });
     await page.waitForTimeout(1_000);
-    const heroPose = await canvas.screenshot();
+    const heroPose = await readCanvasPixels(canvas);
 
     await page.evaluate(() => {
       document.querySelector(".home-process")?.setAttribute("data-home-motion", "process");
       window.dispatchEvent(new Event("scroll"));
     });
     await page.waitForTimeout(1_000);
-    const beforeProcess = await canvas.screenshot();
-    const earlyMovement = await changedPixels(heroPose, beforeProcess);
+    const beforeProcess = await readCanvasPixels(canvas);
+    const earlyMovement = countChangedPixels(heroPose, beforeProcess);
     assert.ok(earlyMovement < 10_000, `流程区尚未进入视口时姿态不应切换，像素变化 ${earlyMovement} (top=${processTop})`);
 
     await page.evaluate((top) => window.scrollTo({ top, behavior: "instant" }), processTop + 300);
     await page.waitForTimeout(1_000);
-    const inProcess = await canvas.screenshot();
-    const stageMovement = await changedPixels(heroPose, inProcess);
+    const inProcess = await readCanvasPixels(canvas);
+    const stageMovement = countChangedPixels(heroPose, inProcess);
     assert.ok(stageMovement > 10_000, `进入流程区后角色应切换到该阶段姿态，像素变化 ${stageMovement}`);
   } finally {
     await context.close();
