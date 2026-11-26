@@ -25,6 +25,20 @@
     "servicesDescription": "从设计到开发，让好想法真正被使用。",
     "characterAlt": "由点组成的人物静态图"
   },
+  "Projects": {
+    "title": "作品",
+    "description": "我为真实工作做的工具，以及练习新想法的小实验。",
+    "browseAll": "浏览所有作品",
+    "internalTarget": "查看项目详情",
+    "externalTarget": "外部网站（新标签页）",
+    "emptyTitle": "作品还在整理",
+    "emptyDescription": "新的作品整理完成后会在这里出现。",
+    "backToWorks": "返回作品列表",
+    "visitProject": "访问项目",
+    "continueBrowsing": "继续浏览作品",
+    "notFoundTitle": "页面暂不可用",
+    "notFoundDescription": "这个作品可能尚未公开、已撤下，或地址有误。"
+  },
   "Footer": {
     "navigation": "站内导航",
     "socialNavigation": "社交链接",

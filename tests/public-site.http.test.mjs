@@ -88,7 +88,41 @@ async function prepareDatabase() {
   testEnvironment.DATABASE_URL = databaseUrl;
   process.env.DATABASE_URL = databaseUrl;
   run("pnpm", ["db:migrate:deploy"]);
+  run("pnpm", ["db:seed"]);
   prisma = getPrisma();
+  await prisma.project.create({
+    data: {
+      id: "http-internal",
+      slug: "http-internal",
+      name: "测试内链作品",
+      description: "展示 Markdown 项目详情。",
+      type: "实验作品",
+      body: "## 项目背景\n\n这是通过 HTTP 验证的项目正文。\n\n访问 [示例入口](https://trace.example)。",
+      contentLanguage: "zh",
+      cardTarget: "INTERNAL",
+      status: "PUBLISHED",
+      url: "https://trace.example",
+      firstPublishedAt: new Date("2024-09-08T00:00:00Z"),
+      createdAt: new Date("2024-09-08T00:00:00Z"),
+      updatedAt: new Date("2024-09-08T00:00:00Z"),
+    },
+  });
+  await prisma.project.create({
+    data: {
+      id: "http-withdrawn",
+      slug: "http-withdrawn",
+      name: "已撤下作品",
+      description: "不应公开。",
+      type: "实验作品",
+      body: "## 草稿",
+      contentLanguage: "zh",
+      cardTarget: "INTERNAL",
+      status: "WITHDRAWN",
+      firstPublishedAt: new Date("2024-09-09T00:00:00Z"),
+      createdAt: new Date("2024-09-09T00:00:00Z"),
+      updatedAt: new Date("2024-09-09T00:00:00Z"),
+    },
+  });
 }
 
 async function startServer(authenticated = false) {
@@ -211,6 +245,44 @@ async function postSettings(values, cookie) {
   });
 }
 
+function getProjectForm(html, predicate) {
+  const forms = [...html.matchAll(/<form\b[\s\S]*?<\/form>/g)].map((match) => match[0]);
+  const form = forms.find(predicate);
+  assert.ok(form, "页面上应找到目标作品表单");
+  return [...form.matchAll(/<input\b[^>]*>/g)]
+    .map(([input]) => {
+      const attributes = Object.fromEntries(
+        [...input.matchAll(/\b(name|value|type)="([^"]*)"/g)].map(([, key, value]) => [key, value]),
+      );
+      return attributes;
+    })
+    .filter((input) => input.type === "hidden" && input.name)
+    .map(({ name, value = "" }) => [
+      name,
+      value.replaceAll("&quot;", '"').replaceAll("&#x27;", "'").replaceAll("&amp;", "&"),
+    ]);
+}
+
+async function submitProjectAction(path, hiddenFields, values, cookie) {
+  const formData = new FormData();
+  for (const [name, value] of hiddenFields) formData.set(name, value);
+  for (const [name, value] of Object.entries(values)) formData.set(name, value);
+  return fetch(`${origin}${path}`, {
+    method: "POST",
+    headers: { cookie, origin, referer: `${origin}${path}` },
+    body: formData,
+  });
+}
+
+async function expectConfirmation(page, button, expectedMessage) {
+  const dialogEvent = page.waitForEvent("dialog", { timeout: 5_000 });
+  const click = button.click();
+  const dialog = await dialogEvent;
+  assert.equal(dialog.message(), expectedMessage);
+  await dialog.dismiss();
+  await click;
+}
+
 test("根路径固定 301 到简体中文首页", async () => {
   const response = await fetch(`${origin}/`, {
     redirect: "manual",
@@ -316,6 +388,52 @@ test("未登录访问后台会被引导回公开登录入口", async () => {
   assert.equal(response.status, 307);
   assert.equal(destination.pathname, "/zh");
   assert.equal(destination.searchParams.get("next"), "/admin");
+});
+
+test("作品列表区分站内详情与外部页面，并按首次发布时间倒序展示", async () => {
+  const response = await fetch(`${origin}/zh/projects`);
+  const html = await response.text();
+
+  assert.equal(response.status, 200, `作品列表失败：${response.status}\n${html.slice(0, 1000)}\n${serverOutput.slice(-4000)}`);
+  assert.match(html, /href="\/zh\/projects\/http-internal"/);
+  assert.match(html, /href="https:\/\/example\.com"[^>]*target="_blank"/);
+  assert.match(html, /查看项目详情/);
+  assert.match(html, /外部网站/);
+  assert.match(html, /个人网站/);
+  assert.ok(html.indexOf("开源工具") < html.indexOf("测试内链作品"));
+  assert.match(html, /<nav\b[\s\S]*?href="\/zh\/projects"/);
+
+  const englishResponse = await fetch(`${origin}/en/projects`);
+  const englishHtml = await englishResponse.text();
+  assert.equal(englishResponse.status, 200);
+  assert.match(englishHtml, /<h1[^>]*>Works<\/h1>/);
+  assert.match(englishHtml, /View project details/);
+  assert.match(englishHtml, /External site \(opens in a new tab\)/);
+});
+
+test("站内作品详情呈现 Markdown 和已配置的外部访问入口", async () => {
+  const response = await fetch(`${origin}/zh/projects/http-internal`);
+  const html = await response.text();
+
+  assert.equal(response.status, 200, `站内详情失败：${response.status}\n${html.slice(0, 1000)}\n${serverOutput.slice(-4000)}`);
+  assert.match(html, /<h1[^>]*>测试内链作品<\/h1>/);
+  assert.match(html, /<h2[^>]*>项目背景<\/h2>/);
+  assert.match(html, /这是通过 HTTP 验证的项目正文。/);
+  assert.match(html, /href="https:\/\/trace\.example"[^>]*target="_blank"/);
+
+  const englishResponse = await fetch(`${origin}/en/projects/http-internal`);
+  const englishHtml = await englishResponse.text();
+  assert.equal(englishResponse.status, 200);
+  assert.match(englishHtml, /<html[^>]*lang="en"/);
+  assert.match(englishHtml, /Visit project/);
+  assert.match(englishHtml, /class="project-detail__body" lang="zh"/);
+});
+
+test("无效、草稿、撤下和外链作品的站内详情均返回 HTTP 404", async () => {
+  for (const slug of ["missing-project", "side-project", "http-withdrawn", "personal-website"]) {
+    const response = await fetch(`${origin}/zh/projects/${slug}`);
+    assert.equal(response.status, 404, `${slug} 应返回 HTTP 404；收到 ${response.status}\n${serverOutput.slice(-4000)}`);
+  }
 });
 
 test("角色首帧前保留静态图与首页入口，首帧渲染后再显示点云", { timeout: 45_000 }, async () => {
@@ -779,4 +897,214 @@ test("站长可以保存站点设置；无效或失败时保留输入并即时�
   assert.equal(publicResponse.status, 200);
   assert.match(publicHtml, /保存后立即公开的介绍/);
   assert.match(publicHtml, /href="https:\/\/example\.com\/contact"/);
+});
+
+test("站长可保存不完整草稿、确认发布、撤下并按原地址重新发布", async (context) => {
+  let owner = await prisma.user.findUnique({ where: { email: ownerEmail } });
+  const createdOwner = !owner;
+  if (!owner) {
+    owner = await prisma.user.create({
+      data: {
+        id: `project-owner-${randomUUID()}`,
+        name: "作品测试站长",
+        email: ownerEmail,
+        emailVerified: true,
+      },
+    });
+  }
+  const token = randomUUID();
+  await prisma.session.create({
+    data: {
+      id: `project-session-${randomUUID()}`,
+      token,
+      expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+      userId: owner.id,
+    },
+  });
+  context.after(async () => {
+    await prisma.session.delete({ where: { token } });
+    if (createdOwner) await prisma.user.delete({ where: { id: owner.id } });
+  });
+
+  await stopServer();
+  await startServer(true);
+  const cookie = sessionCookie(token);
+  const adminResponse = await fetch(`${origin}/admin/projects`, { headers: { cookie } });
+  const adminHtml = await adminResponse.text();
+  assert.equal(adminResponse.status, 200);
+  assert.match(adminHtml, /作品管理/);
+
+  const newDraftForm = getProjectForm(adminHtml, (form) => form.includes('class="admin-project-form"'));
+  const saveDraft = await submitProjectAction("/admin/projects", newDraftForm, {
+    id: "",
+    slug: "http-actions-draft",
+    name: "HTTP 操作作品",
+    description: "",
+    type: "",
+    cardTarget: "INTERNAL",
+    url: "",
+    coverImage: "",
+    body: "",
+    contentLanguage: "",
+  }, cookie);
+  assert.ok(saveDraft.status < 400, `保存草稿失败：${saveDraft.status} ${await saveDraft.text()}`);
+  const draft = await prisma.project.findUnique({ where: { slug: "http-actions-draft" } });
+  assert.ok(draft, "不完整作品应保存为草稿");
+  assert.equal(draft.status, "DRAFT");
+
+  const browserContext = await browser.newContext();
+  context.after(() => browserContext.close());
+  await browserContext.addCookies([{
+    name: "better-auth.session_token",
+    value: cookie.slice("better-auth.session_token=".length),
+    url: origin,
+  }]);
+  const adminPage = await browserContext.newPage();
+  await adminPage.goto(`${origin}/admin/projects`);
+  let editorRow = adminPage.locator(".admin-project-row").filter({ hasText: draft.slug });
+  await editorRow.locator("summary").click();
+  await expectConfirmation(
+    adminPage,
+    editorRow.getByRole("button", { name: "确认地址并发布" }),
+    "请确认作品地址为“http-actions-draft”。首次发布后地址和首次发布时间将固定。",
+  );
+
+  let response = await fetch(`${origin}/admin/projects`, { headers: { cookie } });
+  let html = await response.text();
+  let publishForm = getProjectForm(html, (form) =>
+    form.includes('class="admin-project-action"') &&
+    form.includes(`name="id" value="${draft.id}"`) &&
+    form.includes("确认地址并发布"),
+  );
+  const invalidPublish = await submitProjectAction("/admin/projects", publishForm, { id: draft.id }, cookie);
+  assert.ok(invalidPublish.status < 400, `无效发布请求失败：${invalidPublish.status}`);
+  await invalidPublish.arrayBuffer();
+  let project = await prisma.project.findUnique({ where: { id: draft.id } });
+  assert.equal(project.status, "DRAFT", "缺少必填字段时不得发布");
+
+  response = await fetch(`${origin}/admin/projects`, { headers: { cookie } });
+  html = await response.text();
+  const editForm = getProjectForm(html, (form) =>
+    form.includes('class="admin-project-form"') && form.includes(`name="id" value="${draft.id}"`),
+  );
+  const saveCompleteDraft = await submitProjectAction("/admin/projects", editForm, {
+    id: draft.id,
+    slug: "http-actions-published",
+    name: "HTTP 操作作品",
+    description: "用于验证发布和撤下流程。",
+    type: "实验项目",
+    cardTarget: "INTERNAL",
+    url: "https://trace.example/project",
+    coverImage: "",
+    body: "## 正文\n\n已完成发布所需内容。",
+    contentLanguage: "zh",
+  }, cookie);
+  assert.ok(saveCompleteDraft.status < 400, `补齐草稿失败：${saveCompleteDraft.status}`);
+  await saveCompleteDraft.arrayBuffer();
+
+  response = await fetch(`${origin}/admin/projects`, { headers: { cookie } });
+  html = await response.text();
+  publishForm = getProjectForm(html, (form) =>
+    form.includes('class="admin-project-action"') &&
+    form.includes(`name="id" value="${draft.id}"`) &&
+    form.includes("确认地址并发布"),
+  );
+  const publish = await submitProjectAction("/admin/projects", publishForm, { id: draft.id }, cookie);
+  assert.ok(publish.status < 400, `发布失败：${publish.status}`);
+  await publish.arrayBuffer();
+  project = await prisma.project.findUnique({ where: { id: draft.id } });
+  assert.equal(project.status, "PUBLISHED");
+  const firstPublishedAt = project.firstPublishedAt;
+  assert.ok(firstPublishedAt instanceof Date);
+
+  await adminPage.goto(`${origin}/admin/projects`);
+  editorRow = adminPage.locator(".admin-project-row").filter({ hasText: "http-actions-published" });
+  await editorRow.locator("summary").click();
+  await expectConfirmation(
+    adminPage,
+    editorRow.getByRole("button", { name: "保存并更新公开内容" }),
+    "保存后会立即更新公开作品。确认继续吗？",
+  );
+  await expectConfirmation(
+    adminPage,
+    editorRow.getByRole("button", { name: "撤下作品" }),
+    "撤下后作品会立即从公开列表移除，站内地址将返回 404。确认撤下吗？",
+  );
+
+  response = await fetch(`${origin}/admin/projects`, { headers: { cookie } });
+  html = await response.text();
+  const invalidUpdateForm = getProjectForm(html, (form) =>
+    form.includes('class="admin-project-form"') && form.includes(`name="id" value="${draft.id}"`),
+  );
+  const invalidUpdate = await submitProjectAction("/admin/projects", invalidUpdateForm, {
+    id: draft.id,
+    slug: "http-actions-published",
+    name: "HTTP 操作作品",
+    description: "",
+    type: "实验项目",
+    cardTarget: "INTERNAL",
+    url: "https://trace.example/project",
+    coverImage: "",
+    body: "## 正文\n\n已完成发布所需内容。",
+    contentLanguage: "zh",
+  }, cookie);
+  assert.ok(invalidUpdate.status < 400, `拒绝无效更新失败：${invalidUpdate.status}`);
+  await invalidUpdate.arrayBuffer();
+  project = await prisma.project.findUnique({ where: { id: draft.id } });
+  assert.equal(project.description, "用于验证发布和撤下流程。", "无效更新不应覆盖公开内容");
+
+  response = await fetch(`${origin}/admin/projects`, { headers: { cookie } });
+  html = await response.text();
+  const withdrawForm = getProjectForm(html, (form) =>
+    form.includes('class="admin-project-action"') &&
+    form.includes(`name="id" value="${draft.id}"`) &&
+    form.includes("撤下作品"),
+  );
+  const withdraw = await submitProjectAction("/admin/projects", withdrawForm, { id: draft.id }, cookie);
+  assert.ok(withdraw.status < 400, `撤下失败：${withdraw.status}`);
+  await withdraw.arrayBuffer();
+  project = await prisma.project.findUnique({ where: { id: draft.id } });
+  assert.equal(project.status, "WITHDRAWN");
+  assert.equal(project.firstPublishedAt.toISOString(), firstPublishedAt.toISOString());
+  response = await fetch(`${origin}/zh/projects/http-actions-published`);
+  assert.equal(response.status, 404);
+  response = await fetch(`${origin}/zh/projects`);
+  assert.doesNotMatch(await response.text(), /http-actions-published/);
+
+  response = await fetch(`${origin}/admin/projects`, { headers: { cookie } });
+  html = await response.text();
+  publishForm = getProjectForm(html, (form) =>
+    form.includes('class="admin-project-action"') &&
+    form.includes(`name="id" value="${draft.id}"`) &&
+    form.includes("重新发布"),
+  );
+  const republish = await submitProjectAction("/admin/projects", publishForm, { id: draft.id }, cookie);
+  assert.ok(republish.status < 400, `重新发布失败：${republish.status}`);
+  await republish.arrayBuffer();
+  project = await prisma.project.findUnique({ where: { id: draft.id } });
+  assert.equal(project.status, "PUBLISHED");
+  assert.equal(project.slug, "http-actions-published");
+  assert.equal(project.firstPublishedAt.toISOString(), firstPublishedAt.toISOString());
+
+  response = await fetch(`${origin}/admin/projects`, { headers: { cookie } });
+  html = await response.text();
+  const publishedEditForm = getProjectForm(html, (form) =>
+    form.includes('class="admin-project-form"') && form.includes(`name="id" value="${draft.id}"`),
+  );
+  const renamePublishedProject = await submitProjectAction("/admin/projects", publishedEditForm, {
+    id: draft.id,
+    slug: "changed-after-first-publish",
+    name: "HTTP 操作作品",
+    description: "用于验证发布和撤下流程。",
+    type: "实验项目",
+    cardTarget: "INTERNAL",
+    url: "https://trace.example/project",
+    coverImage: "",
+    body: "## 正文\n\n已完成发布所需内容。",
+    contentLanguage: "zh",
+  }, cookie);
+  assert.ok(renamePublishedProject.status < 400, `编辑已发布作品失败：${renamePublishedProject.status}`);
+  await renamePublishedProject.arrayBuffer();
+  project = await prisma.project.findUnique({ where: { id: draft.id } });
+  assert.equal(project.slug, "http-actions-published", "首次发布后应保留作品地址");
 });

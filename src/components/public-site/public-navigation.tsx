@@ -2,6 +2,7 @@
 
 import { Menu, X } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
+import { Suspense } from "react";
 import { useEffect, useRef, useState } from "react";
 import { Link, usePathname, useRouter } from "@/i18n/navigation";
 import { routing } from "@/i18n/routing";
@@ -38,6 +39,15 @@ function LanguageSwitch({ beforeChange }: { beforeChange?: () => void }) {
       >
         EN
       </button>
+    </div>
+  );
+}
+
+function LanguageSwitchFallback({ label }: { label: string }) {
+  return (
+    <div className="public-language" role="group" aria-label={label}>
+      <button type="button" disabled>中</button>
+      <button type="button" disabled>EN</button>
     </div>
   );
 }
@@ -98,7 +108,9 @@ function MenuDialog({ onDismiss }: { onDismiss: () => void }) {
           </button>
         </div>
         <NavigationLinks onNavigate={dismiss} />
-        <LanguageSwitch beforeChange={dismiss} />
+        <Suspense fallback={<LanguageSwitchFallback label={t("language")} />}>
+          <LanguageSwitch beforeChange={dismiss} />
+        </Suspense>
       </div>
     </dialog>
   );
@@ -148,7 +160,9 @@ export function PublicNavigation() {
         data-hidden={!visible || undefined}
         inert={!visible && !menuOpen ? true : undefined}
       >
-        <LanguageSwitch />
+        <Suspense fallback={<LanguageSwitchFallback label={t("language")} />}>
+          <LanguageSwitch />
+        </Suspense>
         <PublicAuthentication />
         <button
           className="public-icon"

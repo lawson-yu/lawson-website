@@ -15,22 +15,31 @@ const projects = [
     slug: "personal-website",
     name: "个人网站",
     description: "用于展示个人介绍、文章和作品的个人网站示例项目。",
+    type: "个人网站",
+    cardTarget: "EXTERNAL" as const,
+    status: "PUBLISHED" as const,
     url: "https://example.com",
-    featured: true,
+    featuredRank: 1,
   },
   {
     slug: "open-source-tool",
     name: "开源工具",
     description: "记录一个开源工具项目的简介与访问入口。",
+    type: "开发工具",
+    cardTarget: "EXTERNAL" as const,
+    status: "PUBLISHED" as const,
     url: "https://github.com/example",
-    featured: true,
+    featuredRank: 2,
   },
   {
     slug: "side-project",
     name: "实验性小项目",
     description: "用于展示个人实践与实验成果的示例条目。",
+    type: "实验项目",
+    cardTarget: "INTERNAL" as const,
+    status: "DRAFT" as const,
     url: null,
-    featured: false,
+    featuredRank: null,
   },
 ];
 
@@ -38,12 +47,18 @@ try {
   for (const project of projects) {
     await prisma.project.upsert({
       where: { slug: project.slug },
-      create: project,
+      create: {
+        ...project,
+        firstPublishedAt: project.status === "PUBLISHED" ? new Date() : null,
+      },
       update: {
         name: project.name,
         description: project.description,
+        type: project.type,
+        cardTarget: project.cardTarget,
+        status: project.status,
         url: project.url,
-        featured: project.featured,
+        featuredRank: project.featuredRank,
       },
     });
   }

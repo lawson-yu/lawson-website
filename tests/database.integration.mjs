@@ -74,10 +74,57 @@ test("临时数据库可以迁移、重复 seed、备份并恢复全部作品", 
   env.DATABASE_URL = `postgresql://test:test@${address}/test`;
   process.env.DATABASE_URL = env.DATABASE_URL;
 
+  const initialMigration = readFileSync(
+    join(root, "prisma", "migrations", "20261106214211_init", "migration.sql"),
+    "utf8",
+  );
+  let legacyDatabase = new Client({ connectionString: env.DATABASE_URL });
+  await legacyDatabase.connect();
+  await legacyDatabase.query(initialMigration);
+  await legacyDatabase.end();
+  execFileSync(
+    "pnpm",
+    ["exec", "prisma", "migrate", "resolve", "--applied", "20261106214211_init"],
+    options,
+  );
+  legacyDatabase = new Client({ connectionString: env.DATABASE_URL });
+  await legacyDatabase.connect();
+  await legacyDatabase.query(
+    `INSERT INTO "Project" ("id", "slug", "name", "description", "url", "featured", "createdAt", "updatedAt")
+     VALUES
+       ('legacy-external', 'legacy-external', '旧外链作品', '保留既有外部作品。', 'https://legacy.example/work', true, '2025-03-04T05:06:07Z', '2025-03-04T05:06:07Z'),
+       ('legacy-internal', 'legacy-internal', '未完成作品', '缺少公开入口的旧作品。', null, false, '2025-04-05T06:07:08Z', '2025-04-05T06:07:08Z')`,
+  );
+  await legacyDatabase.end();
+
   execFileSync("pnpm", ["db:migrate:deploy"], options);
   execFileSync("pnpm", ["db:seed"], options);
   execFileSync("pnpm", ["db:seed"], options);
   prisma = getPrisma();
+
+  const legacyExternal = await prisma.project.findUnique({ where: { slug: "legacy-external" } });
+  assert.equal(legacyExternal.status, "PUBLISHED");
+  assert.equal(legacyExternal.cardTarget, "EXTERNAL");
+  assert.equal(legacyExternal.featuredRank, 1);
+  assert.equal(legacyExternal.firstPublishedAt.toISOString(), "2025-03-04T05:06:07.000Z");
+  assert.equal(legacyExternal.url, "https://legacy.example/work");
+
+  const legacyInternal = await prisma.project.findUnique({ where: { slug: "legacy-internal" } });
+  assert.equal(legacyInternal.status, "DRAFT");
+  assert.equal(legacyInternal.cardTarget, "INTERNAL");
+  assert.equal(legacyInternal.firstPublishedAt, null);
+
+  const seededExternal = await prisma.project.findUnique({ where: { slug: "personal-website" } });
+  assert.equal(seededExternal.status, "PUBLISHED");
+  assert.equal(seededExternal.cardTarget, "EXTERNAL");
+  assert.equal(seededExternal.type, "个人网站");
+  assert.equal(seededExternal.featuredRank, 1);
+
+  const seededInternal = await prisma.project.findUnique({ where: { slug: "side-project" } });
+  assert.equal(seededInternal.status, "DRAFT");
+  assert.equal(seededInternal.cardTarget, "INTERNAL");
+  assert.equal(seededInternal.firstPublishedAt, null);
+
   const authUserId = `auth-${randomUUID()}`;
   const authSessionToken = randomUUID();
   await prisma.user.create({
@@ -139,10 +186,10 @@ test("临时数据库可以迁移、重复 seed、备份并恢复全部作品", 
 
   const projects = await prisma.project.findMany({ orderBy: { slug: "asc" } });
   assert.deepEqual(projects.map((project) => project.slug), [
-    "open-source-tool", "personal-website", "side-project",
+    "legacy-external", "legacy-internal", "open-source-tool", "personal-website", "side-project",
   ]);
   await assert.rejects(prisma.$queryRaw`SELECT pg_sleep(10)`, /timeout|timed out/i);
-  assert.equal((await prisma.project.count()), 3);
+  assert.equal((await prisma.project.count()), 5);
 
   mkdirSync(backupDirectory, { recursive: true });
   const oldDumps = ["20000101", "20010101", "20020101"].map((date) => `lawson_website-${date}T000000Z.dump`);
