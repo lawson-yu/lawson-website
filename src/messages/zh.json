@@ -27,6 +27,7 @@
   },
   "Footer": {
     "navigation": "站内导航",
+    "socialNavigation": "社交链接",
     "backToTop": "回到顶部"
   }
 }

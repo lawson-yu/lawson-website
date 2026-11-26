@@ -1,16 +1,35 @@
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
+import { createHmac, randomUUID } from "node:crypto";
 import { spawn } from "node:child_process";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { once } from "node:events";
 import { createServer } from "node:net";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
+import { fileURLToPath } from "node:url";
 import { after, before, test } from "node:test";
 import { chromium } from "playwright";
+import "./register-paths.mjs";
 
 const projectRoot = new URL("../", import.meta.url);
+const root = dirname(dirname(fileURLToPath(import.meta.url)));
+const { getPrisma } = await import("../src/server/db.ts");
 let server;
 let origin;
 let serverOutput = "";
 let browser;
+let testDirectory;
+let composeFile;
+let envFile;
+let composeArgs;
+let testEnvironment;
+let databaseUrl;
+let prisma;
+const originalDatabaseUrl = process.env.DATABASE_URL;
+const ownerEmail = "owner@example.test";
+const authSecret = "lawson-site-settings-http-test-secret-32-bytes";
 
 async function reservePort() {
   const listener = createServer();
@@ -25,9 +44,57 @@ async function reservePort() {
   return port;
 }
 
-before(async () => {
+function run(command, args, options = {}) {
+  return execFileSync(command, args, {
+    cwd: root,
+    env: testEnvironment,
+    encoding: "utf8",
+    timeout: 60_000,
+    ...options,
+  });
+}
+
+async function prepareDatabase() {
+  testDirectory = mkdtempSync(join(tmpdir(), "lawson-site-http-test-"));
+  composeFile = join(testDirectory, "compose.yaml");
+  envFile = join(testDirectory, ".env.test");
+  const project = `lawson-http-${randomUUID().slice(0, 8)}`;
+  testEnvironment = {
+    ...process.env,
+    COMPOSE_PROJECT_NAME: project,
+    COMPOSE_FILE: composeFile,
+    ENV_FILE: envFile,
+  };
+  composeArgs = ["compose", "-p", project, "-f", composeFile, "--env-file", envFile];
+  writeFileSync(envFile, "");
+  writeFileSync(composeFile, `services:
+  postgres:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_USER: test
+      POSTGRES_PASSWORD: test
+      POSTGRES_DB: test
+    ports:
+      - "127.0.0.1::5432"
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U test -d test"]
+      interval: 1s
+      timeout: 1s
+      retries: 20
+`);
+  run("docker", [...composeArgs, "up", "-d", "--wait", "postgres"]);
+  const address = run("docker", [...composeArgs, "port", "postgres", "5432"]).trim();
+  databaseUrl = `postgresql://test:test@${address}/test`;
+  testEnvironment.DATABASE_URL = databaseUrl;
+  process.env.DATABASE_URL = databaseUrl;
+  run("pnpm", ["db:migrate:deploy"]);
+  prisma = getPrisma();
+}
+
+async function startServer(authenticated = false) {
   const port = await reservePort();
   origin = `http://127.0.0.1:${port}`;
+  serverOutput = "";
   server = spawn(
     "pnpm",
     ["exec", "next", "dev", "--hostname", "127.0.0.1", "--port", String(port)],
@@ -36,11 +103,12 @@ before(async () => {
       stdio: ["ignore", "pipe", "pipe"],
       env: {
         ...process.env,
-        BETTER_AUTH_URL: "",
-        BETTER_AUTH_SECRET: "",
-        GOOGLE_CLIENT_ID: "",
-        GOOGLE_CLIENT_SECRET: "",
-        ADMIN_EMAILS: "",
+        DATABASE_URL: databaseUrl,
+        BETTER_AUTH_URL: authenticated ? origin : "",
+        BETTER_AUTH_SECRET: authenticated ? authSecret : "",
+        GOOGLE_CLIENT_ID: authenticated ? "test-google-client" : "",
+        GOOGLE_CLIENT_SECRET: authenticated ? "test-google-secret" : "",
+        ADMIN_EMAILS: authenticated ? ownerEmail : "",
       },
     },
   );
@@ -48,7 +116,6 @@ before(async () => {
   server.stderr.setEncoding("utf8").on("data", (chunk) => (serverOutput += chunk));
 
   const deadline = Date.now() + 60_000;
-  let ready = false;
   while (Date.now() < deadline) {
     if (server.exitCode !== null) {
       throw new Error(`Next.js 提前退出：\n${serverOutput}`);
@@ -56,25 +123,93 @@ before(async () => {
     try {
       const response = await fetch(`${origin}/zh`);
       if (response.status === 200) {
-        ready = true;
-        break;
+        browser ??= await chromium.launch({
+          args: ["--enable-webgl", "--enable-unsafe-swiftshader", "--use-gl=angle", "--use-angle=swiftshader"],
+        });
+        return;
       }
     } catch {
       await delay(250);
     }
   }
-  if (!ready) throw new Error(`Next.js 启动超时：\n${serverOutput}`);
-  browser = await chromium.launch({
-    args: ["--enable-webgl", "--enable-unsafe-swiftshader", "--use-gl=angle", "--use-angle=swiftshader"],
-  });
-}, { timeout: 65_000 });
+  throw new Error(`Next.js 启动超时：\n${serverOutput}`);
+}
+
+async function stopServer() {
+  if (!server || server.exitCode !== null) {
+    server = undefined;
+    return;
+  }
+  server.kill("SIGTERM");
+  await Promise.race([once(server, "exit"), delay(5_000)]);
+  server = undefined;
+}
+
+before(async () => {
+  await prepareDatabase();
+  await startServer();
+}, { timeout: 125_000 });
 
 after(async () => {
   await browser?.close();
-  if (!server || server.exitCode !== null) return;
-  server.kill("SIGTERM");
-  await Promise.race([once(server, "exit"), delay(5_000)]);
+  await stopServer();
+  await prisma?.$disconnect();
+  if (composeArgs) {
+    try {
+      run("docker", [...composeArgs, "down", "-v"]);
+    } finally {
+      rmSync(testDirectory, { recursive: true, force: true });
+    }
+  }
+  if (originalDatabaseUrl === undefined) delete process.env.DATABASE_URL;
+  else process.env.DATABASE_URL = originalDatabaseUrl;
 });
+
+function sessionCookie(token) {
+  const signature = createHmac("sha256", authSecret).update(token).digest("base64");
+  return `better-auth.session_token=${encodeURIComponent(`${token}.${signature}`)}`;
+}
+
+function getActionForm(html) {
+  const form = html.match(
+    /<form\b[^>]*class="admin-settings-form"[^>]*>[\s\S]*?<\/form>/,
+  )?.[0];
+  assert.ok(form, "后台应显示首页设置表单");
+  const actionFields = [];
+  for (const [input] of form.matchAll(/<input\b[^>]*>/g)) {
+    const name = input.match(/\bname="([^"]+)"/)?.[1];
+    if (!name?.startsWith("$ACTION_")) continue;
+    const value = (input.match(/\bvalue="([^"]*)"/)?.[1] ?? "")
+      .replaceAll("&quot;", '"')
+      .replaceAll("&#x27;", "'")
+      .replaceAll("&lt;", "<")
+      .replaceAll("&gt;", ">")
+      .replaceAll("&amp;", "&");
+    actionFields.push([name, value]);
+  }
+  assert.ok(actionFields.length > 0, "Server Action 表单应带有请求标记");
+
+  return (values) => {
+    const formData = new FormData();
+    for (const [name, value] of actionFields) formData.append(name, value);
+    formData.set("heroIntroduction", values.heroIntroduction);
+    formData.set("contactUrl", values.contactUrl);
+    formData.set("socialLinks", JSON.stringify(values.socialLinks));
+    return formData;
+  };
+}
+
+async function postSettings(values, cookie) {
+  return fetch(`${origin}/admin`, {
+    method: "POST",
+    headers: {
+      cookie,
+      origin,
+      referer: `${origin}/admin`,
+    },
+    body: values,
+  });
+}
 
 test("根路径固定 301 到简体中文首页", async () => {
   const response = await fetch(`${origin}/`, {
@@ -86,6 +221,19 @@ test("根路径固定 301 到简体中文首页", async () => {
   assert.equal(new URL(response.headers.get("location"), origin).pathname, "/zh");
 });
 
+test("首页未配置介绍、联系入口和社交链接时省略相应内容", async () => {
+  for (const locale of ["zh", "en"]) {
+    const response = await fetch(`${origin}/${locale}`);
+    const html = await response.text();
+    const renderedHtml = html.slice(0, html.indexOf("<script id=\"_R_\">"));
+
+    assert.equal(response.status, 200);
+    assert.doesNotMatch(renderedHtml, /联系我|Contact me/);
+    assert.doesNotMatch(renderedHtml, /href="mailto:/);
+    assert.doesNotMatch(renderedHtml, /public-footer__links/);
+  }
+});
+
 test("双语首页返回对应界面语言和定稿工作流程文案", async () => {
   for (const locale of ["zh", "en"]) {
     const response = await fetch(`${origin}/${locale}`);
@@ -95,6 +243,35 @@ test("双语首页返回对应界面语言和定稿工作流程文案", async ()
     assert.match(html, new RegExp(`<html[^>]*lang="${locale}"`));
     assert.match(html, /让想法，一步步落地。/);
     assert.match(html, /UI 与交互设计/);
+  }
+});
+
+test("站点设置在中英文首页共用原文并按序展示", async () => {
+  await prisma.siteSetting.create({
+    data: {
+      id: 1,
+      heroIntroduction: "  为真实任务构建清晰、可靠的产品。\n保留第二行。  ",
+      contactUrl: "mailto:hello@example.com",
+      socialLinks: [
+        { name: "GitHub", url: "https://github.com/lawson", icon: "code" },
+        { name: "个人主页", url: "https://example.com/lawson", icon: "link" },
+      ],
+    },
+  });
+  await stopServer();
+  await startServer();
+
+  for (const locale of ["zh", "en"]) {
+    const response = await fetch(`${origin}/${locale}`);
+    const html = await response.text();
+
+    assert.equal(response.status, 200);
+    assert.match(html, /为真实任务构建清晰、可靠的产品。/);
+    assert.match(html, /保留第二行。/);
+    assert.match(html, /href="mailto:hello@example\.com"/);
+    assert.match(html, /GitHub/);
+    assert.match(html, /个人主页/);
+    assert.ok(html.indexOf("GitHub") < html.indexOf("个人主页"));
   }
 });
 
@@ -485,4 +662,121 @@ test("弱设备降到 DPR 1，缺失设备指标不会判为弱设备", { timeou
       await context.close();
     }
   }
+});
+
+test("站长可以保存站点设置；无效或失败时保留输入并即时更新首页", async () => {
+  const userId = `owner-${randomUUID()}`;
+  const token = randomUUID();
+  await prisma.user.create({
+    data: {
+      id: userId,
+      name: "隔离测试站长",
+      email: ownerEmail,
+      emailVerified: true,
+      sessions: {
+        create: {
+          id: `session-${randomUUID()}`,
+          token,
+          expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+        },
+      },
+    },
+  });
+
+  await stopServer();
+  await startServer(true);
+  const cookie = sessionCookie(token);
+  const sessionResponse = await fetch(`${origin}/api/auth/get-session`, {
+    headers: { cookie },
+  });
+  assert.equal(sessionResponse.status, 200);
+  assert.equal((await sessionResponse.json()).user.email, ownerEmail);
+
+  const adminResponse = await fetch(`${origin}/admin`, {
+    headers: { cookie },
+  });
+  const adminHtml = await adminResponse.text();
+  assert.equal(adminResponse.status, 200);
+  assert.match(adminHtml, /首页设置/);
+  const actionForm = getActionForm(adminHtml);
+
+  const invalidResponse = await postSettings(
+    actionForm({
+      heroIntroduction: "无效保存时仍保留这段输入",
+      contactUrl: "http://example.com/contact",
+      socialLinks: [
+        { name: "GitHub", url: "https://github.com/lawson", icon: "code" },
+      ],
+    }),
+    cookie,
+  );
+  const invalidBody = await invalidResponse.text();
+  assert.equal(invalidResponse.status, 200, invalidBody.slice(0, 1_500));
+  assert.match(invalidBody, /请输入 mailto: 邮箱地址或 HTTPS 地址/);
+  assert.match(invalidBody, /无效保存时仍保留这段输入/);
+  assert.equal(
+    (await prisma.siteSetting.findUnique({ where: { id: 1 } }))?.heroIntroduction,
+    "  为真实任务构建清晰、可靠的产品。\n保留第二行。  ",
+  );
+
+  await prisma.$executeRawUnsafe(`
+    CREATE FUNCTION reject_site_setting_write() RETURNS trigger
+    LANGUAGE plpgsql AS $$
+    BEGIN
+      RAISE EXCEPTION 'isolated test save failure';
+    END;
+    $$
+  `);
+  await prisma.$executeRawUnsafe(`
+    CREATE TRIGGER reject_site_setting_write
+    BEFORE INSERT OR UPDATE ON "SiteSetting"
+    FOR EACH ROW EXECUTE FUNCTION reject_site_setting_write()
+  `);
+  const failedSaveResponse = await postSettings(
+    actionForm({
+      heroIntroduction: "数据库失败时仍保留这段输入",
+      contactUrl: "https://example.com/contact",
+      socialLinks: [],
+    }),
+    cookie,
+  );
+  const failedSaveBody = await failedSaveResponse.text();
+  assert.equal(failedSaveResponse.status, 200);
+  assert.match(failedSaveBody, /保存失败，请稍后重试/);
+  assert.match(failedSaveBody, /数据库失败时仍保留这段输入/);
+  assert.equal(
+    (await prisma.siteSetting.findUnique({ where: { id: 1 } }))?.heroIntroduction,
+    "  为真实任务构建清晰、可靠的产品。\n保留第二行。  ",
+  );
+  await prisma.$executeRawUnsafe(`DROP TRIGGER reject_site_setting_write ON "SiteSetting"`);
+  await prisma.$executeRawUnsafe("DROP FUNCTION reject_site_setting_write()");
+
+  const savedResponse = await postSettings(
+    actionForm({
+      heroIntroduction: "保存后立即公开的介绍",
+      contactUrl: "https://example.com/contact",
+      socialLinks: [
+        { name: "个人主页", url: "https://example.com/lawson", icon: "link" },
+        { name: "GitHub", url: "https://github.com/lawson", icon: "code" },
+      ],
+    }),
+    cookie,
+  );
+  const savedBody = await savedResponse.text();
+  assert.equal(savedResponse.status, 200);
+  assert.match(savedBody, /已保存，首页内容已更新/);
+
+  const updated = await prisma.siteSetting.findUnique({ where: { id: 1 } });
+  assert.equal(updated?.heroIntroduction, "保存后立即公开的介绍");
+  assert.equal(updated?.contactUrl, "https://example.com/contact");
+  assert.deepEqual(updated?.socialLinks, [
+    { name: "个人主页", url: "https://example.com/lawson", icon: "link" },
+    { name: "GitHub", url: "https://github.com/lawson", icon: "code" },
+  ]);
+
+  const publicResponse = await fetch(`${origin}/zh`);
+  const publicHtml = await publicResponse.text();
+  assert.equal(publicResponse.status, 200);
+  assert.match(publicHtml, /保存后立即公开的介绍/);
+  assert.match(publicHtml, /href="https:\/\/example\.com\/contact"/);
 });
