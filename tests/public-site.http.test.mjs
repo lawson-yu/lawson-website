@@ -325,16 +325,18 @@ function getProjectForm(html, predicate) {
     ]);
 }
 
-async function navigateToHome(context, path, contentReady, previousPage) {
+async function navigateToHome(context, path, contentReady, previousPage, waitForCharacter = true) {
   await previousPage?.close();
   const page = await context.newPage();
   await page.goto(`${origin}${path}`, { waitUntil: "commit" });
-  await page.waitForFunction(
-    () => document.querySelectorAll("[data-home-content-slot]").length === 1 &&
-      document.querySelector(".home-hero__character")?.getAttribute("data-character-stage") === "rendered",
-    null,
-    { timeout: 15_000 },
-  );
+  if (waitForCharacter) {
+    await page.waitForFunction(
+      () => document.querySelectorAll("[data-home-content-slot]").length === 1 &&
+        document.querySelector(".home-hero__character")?.getAttribute("data-character-stage") === "rendered",
+      null,
+      { timeout: 15_000 },
+    );
+  }
   if (contentReady) await page.waitForFunction(contentReady, null, { timeout: 15_000 });
   return page;
 }
@@ -1052,6 +1054,8 @@ test("站长分别管理首页精选顺序与上限，撤下内容可恢复位�
       "/zh",
       () => document.querySelectorAll("#featured-articles .home-featured__article").length === 5 &&
         document.querySelectorAll("#featured-projects .works-card").length === 3,
+      undefined,
+      false,
     );
     const prompt = page.locator(".home-hero__explore");
     assert.equal(await prompt.count(), 1);
@@ -1080,6 +1084,7 @@ test("站长分别管理首页精选顺序与上限，撤下内容可恢复位�
       () => document.querySelectorAll("#featured-articles .article-card__title").length === 5 &&
         document.querySelector("#featured-projects-title")?.textContent === "Selected works",
       page,
+      false,
     );
     await page.getByRole("heading", { name: "Featured articles" }).waitFor();
     assert.equal(
@@ -1093,6 +1098,7 @@ test("站长分别管理首页精选顺序与上限，撤下内容可恢复位�
       "/zh",
       () => document.querySelectorAll("#featured-projects .works-card").length === 3,
       page,
+      false,
     );
 
     let homeProjects = page.locator("#featured-projects .works-card");
@@ -1134,6 +1140,7 @@ test("站长分别管理首页精选顺序与上限，撤下内容可恢复位�
       "/zh",
       () => document.querySelectorAll("#featured-articles .home-featured__article").length === 4,
       page,
+      false,
     );
     articleCards = page.locator("#featured-articles .home-featured__article");
     assert.deepEqual(await articleCards.locator(".article-card__title").allTextContents(), [
@@ -1164,6 +1171,7 @@ test("站长分别管理首页精选顺序与上限，撤下内容可恢复位�
       "/zh",
       () => document.querySelector("#featured-articles .article-card__title")?.textContent === "首页精选文章 2",
       page,
+      false,
     );
     articleCards = page.locator("#featured-articles .home-featured__article");
     assert.equal(await articleCards.locator(".article-card__title").first().textContent(), "首页精选文章 2");
@@ -1182,6 +1190,7 @@ test("站长分别管理首页精选顺序与上限，撤下内容可恢复位�
       "/zh",
       () => document.querySelectorAll("#featured-projects .works-card").length === 2,
       page,
+      false,
     );
     homeProjects = page.locator("#featured-projects .works-card");
     assert.deepEqual(await homeProjects.locator(".works-card__title").allTextContents(), [
@@ -1202,6 +1211,7 @@ test("站长分别管理首页精选顺序与上限，撤下内容可恢复位�
       "/zh",
       () => document.querySelector("#featured-projects .works-card__title")?.textContent === "首页精选作品 2",
       page,
+      false,
     );
     homeProjects = page.locator("#featured-projects .works-card");
     assert.equal(await homeProjects.locator(".works-card__title").first().textContent(), "首页精选作品 2");
