@@ -26,6 +26,7 @@ export async function PublicFooter() {
         <Link href="/">{navigation("home")}</Link>
         <Link href="/articles">{navigation("articles")}</Link>
         <Link href="/projects">{navigation("projects")}</Link>
+        <Link href="/privacy">{t("privacy")}</Link>
       </nav>
       {(siteSetting?.contactUrl || socialLinks.length > 0) && (
         <nav

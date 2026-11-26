@@ -4,6 +4,7 @@ import { ArrowLeft, ArrowUpRight, ChevronDown } from "lucide-react";
 import { getTranslations } from "next-intl/server";
 import { notFound } from "next/navigation";
 import { Link } from "@/i18n/navigation";
+import { VisitTracker } from "@/components/public-site/visit-tracker";
 import { resolveMediaUrl } from "@/lib/media-url";
 import { getContentLocale } from "@/lib/content-language";
 import { buildDetailMetadata } from "@/lib/seo";
@@ -135,6 +136,7 @@ export default async function ArticlePage({ params, searchParams }: ArticlePageP
 
   return (
     <main className="article-reading">
+      <VisitTracker kind="article" targetId={article.id} />
       <article lang={bodyLanguage}>
         <header className="article-reading__hero">
           <div className="article-reading__opening">

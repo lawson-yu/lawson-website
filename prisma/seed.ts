@@ -49,7 +49,6 @@ try {
       where: { slug: project.slug },
       create: {
         ...project,
-        featured: project.featuredRank !== null,
         firstPublishedAt: project.status === "PUBLISHED" ? new Date() : null,
       },
       update: {
@@ -60,7 +59,6 @@ try {
         status: project.status,
         url: project.url,
         featuredRank: project.featuredRank,
-        featured: project.featuredRank !== null,
       },
     });
   }

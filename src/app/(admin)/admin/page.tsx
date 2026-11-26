@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { getTranslations } from "next-intl/server";
 import Link from "next/link";
 import type { SiteSettingsDraft } from "@/lib/site-settings";
 import { requireSiteOwner } from "@/server/auth";
@@ -16,6 +17,7 @@ export default function AdminPage() {
 
 async function AdminContent() {
   const session = await requireSiteOwner();
+  const t = await getTranslations({ locale: "zh", namespace: "Admin" });
   const siteSetting = await getSiteSetting();
   const initialValues: SiteSettingsDraft = {
     heroIntroduction: siteSetting?.heroIntroduction ?? "",
@@ -26,17 +28,18 @@ async function AdminContent() {
   return (
     <main className="admin-page">
       <header className="admin-page__header">
-        <Link href="/zh">LAWSON · 管理后台</Link>
+        <Link href="/zh">{t("brand")}</Link>
         <div>
-          <span>已登录 · {session.user.email}</span>
-          <SignOutButton label="退出" />
+          <span>{t("signedIn", { email: session.user.email })}</span>
+          <SignOutButton label={t("signOut")} />
         </div>
       </header>
       <section className="admin-page__content">
-        <h1>首页设置</h1>
-        <p>维护首页介绍、主要联系入口和社交链接。</p>
-        <Link className="admin-page__link" href="/admin/articles">管理文章</Link>
-        <Link className="admin-page__link" href="/admin/projects">作品管理</Link>
+        <h1>{t("homeTitle")}</h1>
+        <p>{t("homeDescription")}</p>
+        <Link className="admin-page__link" href="/admin/articles">{t("manageArticles")}</Link>
+        <Link className="admin-page__link" href="/admin/projects">{t("manageProjects")}</Link>
+        <Link className="admin-page__link" href="/admin/visitors">{t("visitorRecords")}</Link>
         <SiteSettingsForm initialValues={initialValues} />
       </section>
     </main>

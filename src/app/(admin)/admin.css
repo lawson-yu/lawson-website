@@ -479,3 +479,104 @@
   .admin-project-form__actions p,
   .admin-project-action p { width: 100%; }
 }
+
+.admin-visitors-page .admin-page__content {
+  width: min(1120px, 100%);
+  margin-top: clamp(40px, 8vh, 80px);
+}
+
+.admin-visitors-page .admin-page__header > div {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: .8rem;
+}
+
+.admin-visitors__heading,
+.admin-visitor__header {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 1.5rem;
+}
+
+.admin-visitors__heading { margin-bottom: 1.5rem; }
+.admin-visitors__heading h1 { font-size: clamp(2rem, 4vw, 3rem); letter-spacing: -.03em; }
+.admin-visitors__heading p { max-width: 68ch; margin: .55rem 0 0; }
+.admin-visitors__count { flex: 0 0 auto; font-size: .9rem; white-space: nowrap; }
+
+.admin-visitors__prune {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: .8rem 1rem;
+  margin-bottom: 1.5rem;
+  border-block: 1px solid var(--site-rule);
+  padding: 1rem 0;
+}
+
+.admin-visitors__prune button,
+.admin-visitor__delete button {
+  min-height: 44px;
+  border: 1px solid var(--site-rule);
+  border-radius: 999px;
+  padding: 0 1rem;
+  background: transparent;
+  color: var(--site-ink);
+  font: inherit;
+  cursor: pointer;
+}
+
+.admin-visitors__prune button { border-color: var(--site-ink); background: var(--site-ink); color: #101012; }
+.admin-visitor__delete button { border-color: #76554d; color: #f0c2ad; }
+.admin-visitors__prune button:disabled,
+.admin-visitor__delete button:disabled { opacity: .55; cursor: wait; }
+.admin-visitors__notice { margin: 0; font-size: .88rem; }
+.admin-visitors__notice[data-status="error"] { color: #ffb4a9; }
+.admin-visitors__notice[data-status="success"] { color: #b9edce; }
+
+.admin-visitors__list,
+.admin-visitor__visits ul { margin: 0; padding: 0; list-style: none; }
+.admin-visitors__list { display: grid; gap: 1rem; }
+.admin-visitor { border: 1px solid var(--site-rule); border-radius: 12px; padding: clamp(1rem, 2.5vw, 1.5rem); background: var(--site-panel); }
+.admin-visitor__header { align-items: center; }
+.admin-visitor__header h2 { margin: 0; font-size: 1.15rem; font-weight: 620; }
+.admin-page__content .admin-visitor__email { margin: .25rem 0 0; font-size: .88rem; }
+.admin-visitor__logins {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: .8rem 1.5rem;
+  margin: 1.25rem 0 0;
+  border-top: 1px solid var(--site-rule);
+  padding-top: 1rem;
+}
+.admin-visitor__logins dt { color: var(--site-muted); font-size: .8rem; }
+.admin-visitor__logins dd { margin: .3rem 0 0; font-size: .9rem; font-variant-numeric: tabular-nums; }
+.admin-visitor__visits {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.5rem;
+  margin-top: 1.25rem;
+}
+.admin-visitor__visits section { min-width: 0; border-top: 1px solid var(--site-rule); padding-top: 1rem; }
+.admin-visitor__visits h3 { display: flex; align-items: baseline; gap: .55rem; margin: 0 0 .6rem; font-size: .95rem; }
+.admin-visitor__visits h3 span { color: var(--site-muted); font-size: .8rem; font-weight: 400; }
+.admin-visitor__visits li { display: grid; gap: .25rem; padding: .7rem 0; border-top: 1px solid var(--site-rule); }
+.admin-visitor__visits li strong { font-size: .9rem; font-weight: 550; }
+.admin-visitor__visits li span,
+.admin-visitor__visits section > p { margin: 0; color: var(--site-muted); font-size: .8rem; line-height: 1.6; font-variant-numeric: tabular-nums; }
+.admin-visitors__empty { border-top: 1px solid var(--site-rule); padding-top: 1rem; }
+
+@media (hover: hover) and (pointer: fine) {
+  .admin-visitors__prune button:hover { opacity: .85; }
+  .admin-visitor__delete button:hover { border-color: #d18a79; }
+}
+
+@media (max-width: 640px) {
+  .admin-visitors-page .admin-page__header { align-items: flex-start; flex-direction: column; gap: .75rem; }
+  .admin-visitors__heading,
+  .admin-visitor__header { align-items: flex-start; flex-direction: column; }
+  .admin-visitor__logins,
+  .admin-visitor__visits { grid-template-columns: minmax(0, 1fr); }
+  .admin-visitors__prune { align-items: flex-start; flex-direction: column; }
+}

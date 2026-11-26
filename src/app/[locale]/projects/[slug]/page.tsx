@@ -4,6 +4,7 @@ import { ArrowLeft, ArrowUpRight } from "lucide-react";
 import { getTranslations } from "next-intl/server";
 import { notFound } from "next/navigation";
 import { Link } from "@/i18n/navigation";
+import { VisitTracker } from "@/components/public-site/visit-tracker";
 import { resolveMediaUrl } from "@/lib/media-url";
 import { getContentLocale } from "@/lib/content-language";
 import { buildDetailMetadata } from "@/lib/seo";
@@ -47,6 +48,7 @@ export default async function ProjectDetailPage({ params }: Props) {
 
   return (
     <main className="project-detail-page">
+      <VisitTracker kind="project" targetId={project.id} />
       <article className="project-detail" lang={bodyLanguage}>
         <Link className="project-detail__back" href="/projects">
           <ArrowLeft aria-hidden="true" size={17} />

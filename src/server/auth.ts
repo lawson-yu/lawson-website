@@ -4,8 +4,10 @@ import { betterAuth } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
 import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
+import { revalidateTag } from "next/cache";
 import { isSiteOwner } from "@/lib/auth-policy";
 import { getPrisma } from "./db";
+import { recordVisitorLogin, VISITOR_RECORDS_CACHE_TAG } from "./visitors";
 
 function hasValue(value: string | undefined) {
   return Boolean(value?.trim());
@@ -35,6 +37,16 @@ function createAuth() {
     },
     session: {
       expiresIn: 60 * 60 * 24 * 7,
+    },
+    databaseHooks: {
+      session: {
+        create: {
+          after: async (session) => {
+            await recordVisitorLogin(session.userId, session.createdAt);
+            revalidateTag(VISITOR_RECORDS_CACHE_TAG, { expire: 0 });
+          },
+        },
+      },
     },
   });
 }
