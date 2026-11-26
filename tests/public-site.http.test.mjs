@@ -374,18 +374,10 @@ test("首页滚动提示保留英文且不响应点击或进入焦点顺序", as
   }
 });
 
-test("首页文案和入口随滚动淡出，手机页面仍可正常滚动", async () => {
+test("首页文案和入口随滚动淡出，手机页面仍可正常滚动", { timeout: 60_000 }, async () => {
   const desktop = await browser.newContext({ viewport: { width: 1280, height: 800 } });
-  const desktopPage = await desktop.newPage();
-  const mobile = await browser.newContext({
-    viewport: { width: 390, height: 844 },
-    deviceScaleFactor: 2,
-    isMobile: true,
-    hasTouch: true,
-  });
-  const mobilePage = await mobile.newPage();
-
   try {
+    const desktopPage = await desktop.newPage();
     await desktopPage.goto(`${origin}/zh`);
     await desktopPage.waitForFunction(
       () => document.querySelector(".home-hero__character")?.dataset.characterStage === "rendered",
@@ -399,8 +391,25 @@ test("首页文案和入口随滚动淡出，手机页面仍可正常滚动", as
       { timeout: 5_000 },
     );
     assert.ok(Number(await desktopPage.locator(".home-hero__content").evaluate((element) => getComputedStyle(element).opacity)) < 0.5);
+  } finally {
+    await desktop.close();
+  }
 
+  // 释放桌面点云上下文并等移动端首帧就绪后再发触摸手势，避免软渲染争抢吞掉滚动。
+  const mobile = await browser.newContext({
+    viewport: { width: 390, height: 844 },
+    deviceScaleFactor: 2,
+    isMobile: true,
+    hasTouch: true,
+  });
+  try {
+    const mobilePage = await mobile.newPage();
     await mobilePage.goto(`${origin}/zh`);
+    await mobilePage.waitForFunction(
+      () => document.querySelector(".home-hero__character")?.dataset.characterStage === "rendered",
+      null,
+      { timeout: 15_000 },
+    );
     const touch = await mobilePage.context().newCDPSession(mobilePage);
     await touch.send("Input.synthesizeScrollGesture", {
       x: 195,
@@ -409,18 +418,18 @@ test("首页文案和入口随滚动淡出，手机页面仍可正常滚动", as
       speed: 700,
       gestureSourceType: "touch",
     });
-    await mobilePage.waitForFunction(() => scrollY >= 150);
+    await mobilePage.waitForFunction(() => scrollY >= 150, null, { timeout: 15_000 });
     assert.ok(Number(await mobilePage.locator(".home-hero__content").evaluate((element) => getComputedStyle(element).opacity)) < 1);
     assert.ok(await mobilePage.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
     assert.ok(await mobilePage.evaluate(() => scrollY > 0));
     await touch.detach();
   } finally {
-    await desktop.close();
     await mobile.close();
   }
 });
 
-test("桌面角色随指针移动并在指针离开后回到自然姿态", { timeout: 45_000 }, async () => {
+// CI 无 GPU 软渲染单帧与三次截图耗时较长，预留足够超时避免级联污染后续用例。
+test("桌面角色随指针移动并在指针离开后回到自然姿态", { timeout: 90_000 }, async () => {
   const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
   const page = await context.newPage();
 
@@ -450,7 +459,7 @@ test("桌面角色随指针移动并在指针离开后回到自然姿态", { tim
   }
 });
 
-test("桌面角色只在进入流程区后切换对应阶段姿态", { timeout: 45_000 }, async () => {
+test("桌面角色只在进入流程区后切换对应阶段姿态", { timeout: 90_000 }, async () => {
   const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
   const page = await context.newPage();
 
