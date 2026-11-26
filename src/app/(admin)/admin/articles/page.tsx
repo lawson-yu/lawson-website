@@ -20,7 +20,10 @@ async function AdminArticlesContent() {
     <main className="admin-page article-admin">
       <header className="admin-page__header">
         <Link href="/admin">LAWSON · 管理后台</Link>
-        <Link href="/admin/articles/new">新建文章</Link>
+        <div className="article-admin__header-actions">
+          <Link href="/admin/articles/tags">管理标签</Link>
+          <Link href="/admin/articles/new">新建文章</Link>
+        </div>
       </header>
       <section className="article-admin__content">
         <div className="article-admin__heading">

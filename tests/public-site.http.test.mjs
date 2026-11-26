@@ -123,6 +123,52 @@ async function prepareDatabase() {
       updatedAt: new Date("2024-09-09T00:00:00Z"),
     },
   });
+  await prisma.article.create({
+    data: {
+      id: "http-article-ai",
+      slug: "http-article-ai",
+      title: "AI 技术文章",
+      excerpt: "带有 AI 标签的公开文章。",
+      bodyLanguage: "zh",
+      body: "## AI 实践\n\n这篇文章用于验证标签入口。",
+      status: "PUBLISHED",
+      firstPublishedAt: new Date("2026-11-21T00:00:00.000Z"),
+      tags: { create: [{ id: "http-tag-ai", name: "AI" }] },
+    },
+  });
+  await prisma.article.create({
+    data: {
+      id: "http-article-writing",
+      slug: "http-article-writing",
+      title: "未筛选的写作文章",
+      excerpt: "这篇文章没有 AI 标签。",
+      bodyLanguage: "zh",
+      body: "## 写作\n\n用于检验标签筛选。",
+      status: "PUBLISHED",
+      firstPublishedAt: new Date("2026-11-20T00:00:00.000Z"),
+    },
+  });
+  for (const [id, title, firstPublishedAt] of [
+    ["http-article-new", "较新的文章", "2026-11-19T00:00:00.000Z"],
+    ["http-article-tie-a", "同日文章 A", "2026-11-18T00:00:00.000Z"],
+    ["http-article-tie-b", "同日文章 B", "2026-11-18T00:00:00.000Z"],
+    ["http-article-old-a", "较早文章 A", "2026-11-17T00:00:00.000Z"],
+    ["http-article-old-b", "较早文章 B", "2026-11-16T00:00:00.000Z"],
+    ["http-article-old-c", "较早文章 C", "2026-11-15T00:00:00.000Z"],
+  ]) {
+    await prisma.article.create({
+      data: {
+        id,
+        slug: id,
+        title,
+        excerpt: "连续浏览验收文章。",
+        bodyLanguage: "zh",
+        body: "## 正文\n\n隔离验收数据。",
+        status: "PUBLISHED",
+        firstPublishedAt: new Date(firstPublishedAt),
+      },
+    });
+  }
 }
 
 async function startServer(authenticated = false) {
@@ -293,6 +339,279 @@ test("根路径固定 301 到简体中文首页", async () => {
 
   assert.equal(response.status, 301);
   assert.equal(new URL(response.headers.get("location"), origin).pathname, "/zh");
+});
+
+test("访客可从列表或详情标签进入该主题，并清除失效标签", async () => {
+  for (const locale of ["zh", "en"]) {
+    const listResponse = await fetch(`${origin}/${locale}/articles`);
+    const list = await listResponse.text();
+    assert.equal(listResponse.status, 200);
+    assert.match(list, /AI 技术文章/);
+    assert.match(list, /未筛选的写作文章/);
+    assert.match(list, /src="\/images\/prototype\/article-list\/fragment\.webp"/);
+
+    const filteredResponse = await fetch(`${origin}/${locale}/articles?tag=http-tag-ai`);
+    const filtered = await filteredResponse.text();
+    assert.equal(filteredResponse.status, 200);
+    assert.match(filtered, /AI 技术文章/);
+    assert.doesNotMatch(filtered, /未筛选的写作文章/);
+    assert.match(filtered, new RegExp(`href="/${locale}/articles\\?tag=http-tag-ai"`));
+
+    const detailResponse = await fetch(`${origin}/${locale}/articles/http-article-ai`);
+    const detail = await detailResponse.text();
+    assert.equal(detailResponse.status, 200);
+    assert.match(detail, new RegExp(`href="/${locale}/articles\\?tag=http-tag-ai"`));
+
+    const invalidResponse = await fetch(`${origin}/${locale}/articles?tag=deleted-tag`);
+    const invalid = await invalidResponse.text();
+    assert.equal(invalidResponse.status, 200);
+    assert.match(invalid, /标签.*失效|selected tag is no longer available/i);
+    assert.match(invalid, /AI 技术文章/);
+    assert.match(invalid, /未筛选的写作文章/);
+  }
+});
+
+test("文章列表按发布时间和 ID 排序，并可手动增量加载", { timeout: 30_000 }, async () => {
+  const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+  const page = await context.newPage();
+
+  try {
+    await page.goto(`${origin}/zh/articles`);
+    const cards = page.locator(".articles-index__grid > li");
+    await page.waitForFunction(() => document.querySelectorAll(".articles-index__grid > li").length > 0);
+    assert.equal(await cards.count(), 6);
+    assert.deepEqual(await page.locator(".article-card__title").allTextContents(), [
+      "AI 技术文章",
+      "未筛选的写作文章",
+      "较新的文章",
+      "同日文章 B",
+      "同日文章 A",
+      "较早文章 A",
+    ]);
+
+    await page.getByRole("link", { name: "加载更多文章" }).click();
+    await page.waitForFunction(() => document.querySelectorAll(".articles-index__grid > li").length === 8);
+    assert.deepEqual((await page.locator(".article-card__title").allTextContents()).slice(-2), [
+      "较早文章 B",
+      "较早文章 C",
+    ]);
+    assert.equal(await page.getByRole("link", { name: "加载更多文章" }).count(), 0);
+  } finally {
+    await context.close();
+  }
+});
+
+test("滚动到文章列表末尾时自动加载下一批", { timeout: 20_000 }, async () => {
+  const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+  const page = await context.newPage();
+
+  try {
+    await page.goto(`${origin}/zh/articles`);
+    const cards = page.locator(".articles-index__grid > li");
+    await page.waitForFunction(() => document.querySelectorAll(".articles-index__grid > li").length === 6);
+    const loadMore = page.getByRole("link", { name: "加载更多文章" });
+    await loadMore.waitFor({ state: "visible" });
+    await loadMore.scrollIntoViewIfNeeded();
+    await page.waitForFunction(() => document.querySelectorAll(".articles-index__grid > li").length === 8, null, { timeout: 8_000 });
+    assert.equal(await cards.count(), 8);
+  } finally {
+    await context.close();
+  }
+});
+
+test("站长可给文章关联和移除标签，公开主题列表即时更新", { timeout: 45_000 }, async () => {
+  const ownerId = `tag-article-owner-${randomUUID()}`;
+  const token = randomUUID();
+  await prisma.user.create({
+    data: {
+      id: ownerId,
+      name: "文章标签验收站长",
+      email: ownerEmail,
+      emailVerified: true,
+      sessions: {
+        create: {
+          id: `tag-article-session-${randomUUID()}`,
+          token,
+          expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+        },
+      },
+    },
+  });
+
+  try {
+    await stopServer();
+    await startServer(true);
+    const cookie = sessionCookie(token);
+    const editorResponse = await fetch(`${origin}/admin/articles/new`, { headers: { cookie } });
+    const editor = await editorResponse.text();
+    assert.equal(editorResponse.status, 200);
+    assert.match(editor, /name="tagIds"/);
+    assert.match(editor, /AI/);
+
+    const newArticleForm = getProjectForm(editor, (form) => form.includes('class="article-editor"'));
+    const publishResponse = await submitProjectAction("/admin/articles/new", newArticleForm, {
+      intent: "publish",
+      title: "站长标签文章",
+      excerpt: "通过后台关联主题标签。",
+      bodyLanguage: "zh",
+      body: "## 标签正文\n\n隔离数据库验收。",
+      slug: "owner-tagged-article",
+      tagIds: "http-tag-ai",
+    }, cookie);
+    assert.ok(publishResponse.status < 400, `发布带标签文章失败：${publishResponse.status}`);
+    await publishResponse.arrayBuffer();
+
+    let article = await prisma.article.findUnique({ where: { slug: "owner-tagged-article" }, include: { tags: true } });
+    assert.deepEqual(article?.tags.map((tag) => tag.name), ["AI"]);
+    let topicList = await (await fetch(`${origin}/zh/articles?tag=http-tag-ai`)).text();
+    assert.match(topicList, /站长标签文章/);
+
+    const editResponse = await fetch(`${origin}/admin/articles/${article?.id}`, { headers: { cookie } });
+    const editPage = await editResponse.text();
+    assert.equal(editResponse.status, 200);
+    const editForm = getProjectForm(editPage, (form) => form.includes('class="article-editor"'));
+    const saveResponse = await submitProjectAction(`/admin/articles/${article?.id}`, editForm, {
+      intent: "save",
+      title: "站长标签文章",
+      excerpt: "通过后台关联主题标签。",
+      bodyLanguage: "zh",
+      body: "## 标签正文\n\n隔离数据库验收。",
+      slug: "owner-tagged-article",
+    }, cookie);
+    assert.ok(saveResponse.status < 400, `移除文章标签失败：${saveResponse.status}`);
+    await saveResponse.arrayBuffer();
+
+    article = await prisma.article.findUnique({ where: { slug: "owner-tagged-article" }, include: { tags: true } });
+    assert.equal(article?.status, "PUBLISHED");
+    assert.equal(article?.tags.length, 0);
+    topicList = await (await fetch(`${origin}/zh/articles?tag=http-tag-ai`)).text();
+    assert.doesNotMatch(topicList, /站长标签文章/);
+    const allArticles = await (await fetch(`${origin}/zh/articles`)).text();
+    assert.match(allArticles, /站长标签文章/);
+  } finally {
+    await stopServer();
+    await prisma.user.delete({ where: { id: ownerId } });
+    await startServer(false);
+  }
+});
+
+test("站长可新增、改名、移除标签，未授权请求不能修改", { timeout: 45_000 }, async () => {
+  const ownerId = `tag-owner-${randomUUID()}`;
+  const ownerToken = randomUUID();
+  const visitorId = `tag-visitor-${randomUUID()}`;
+  const visitorToken = randomUUID();
+  await prisma.user.create({
+    data: {
+      id: ownerId,
+      name: "标签验收站长",
+      email: ownerEmail,
+      emailVerified: true,
+      sessions: {
+        create: {
+          id: `tag-session-${randomUUID()}`,
+          token: ownerToken,
+          expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+        },
+      },
+    },
+  });
+  await prisma.user.create({
+    data: {
+      id: visitorId,
+      name: "标签验收访客",
+      email: "tag-visitor@example.test",
+      emailVerified: true,
+      sessions: {
+        create: {
+          id: `tag-session-${randomUUID()}`,
+          token: visitorToken,
+          expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+        },
+      },
+    },
+  });
+
+  try {
+    await stopServer();
+    await startServer(true);
+    const ownerCookie = sessionCookie(ownerToken);
+    const visitorCookie = sessionCookie(visitorToken);
+    const initialTagCount = await prisma.tag.count();
+    for (const cookie of [undefined, visitorCookie]) {
+      const response = await fetch(`${origin}/admin/articles/tags`, {
+        headers: cookie ? { cookie } : {},
+        redirect: "manual",
+      });
+      assert.ok([303, 307, 404].includes(response.status), `未授权读取后台标签应被拒绝，收到 ${response.status}`);
+    }
+
+    const pageResponse = await fetch(`${origin}/admin/articles/tags`, { headers: { cookie: ownerCookie } });
+    const pageHtml = await pageResponse.text();
+    assert.equal(pageResponse.status, 200);
+    assert.match(pageHtml, /标签管理/);
+    const createForm = getProjectForm(pageHtml, (form) => form.includes('name="intent" value="create"'));
+    for (const cookie of [undefined, visitorCookie]) {
+      const response = await submitProjectAction("/admin/articles/tags", createForm, {
+        name: `未授权标签-${cookie ? "visitor" : "anonymous"}`,
+      }, cookie);
+      assert.notEqual(response.status, 200);
+      await response.arrayBuffer();
+      assert.equal(await prisma.tag.count(), initialTagCount);
+    }
+
+    const createResponse = await submitProjectAction("/admin/articles/tags", createForm, { name: "临时主题" }, ownerCookie);
+    assert.ok(createResponse.status < 400, `新增标签失败：${createResponse.status}`);
+    await createResponse.arrayBuffer();
+    const createdTag = await prisma.tag.findUnique({ where: { name: "临时主题" } });
+    assert.ok(createdTag);
+
+    const afterCreate = await (await fetch(`${origin}/admin/articles/tags`, { headers: { cookie: ownerCookie } })).text();
+    const renameForm = getProjectForm(afterCreate, (form) =>
+      form.includes('name="intent" value="rename"') && form.includes(`name="id" value="${createdTag.id}"`),
+    );
+    const renameResponse = await submitProjectAction("/admin/articles/tags", renameForm, { name: "工程实践" }, ownerCookie);
+    assert.ok(renameResponse.status < 400, `改名标签失败：${renameResponse.status}`);
+    await renameResponse.arrayBuffer();
+    assert.ok(await prisma.tag.findUnique({ where: { name: "工程实践" } }));
+
+    const afterRename = await (await fetch(`${origin}/admin/articles/tags`, { headers: { cookie: ownerCookie } })).text();
+    const renameAiForm = getProjectForm(afterRename, (form) =>
+      form.includes('name="intent" value="rename"') && form.includes('name="id" value="http-tag-ai"'),
+    );
+    const renameAi = await submitProjectAction("/admin/articles/tags", renameAiForm, { name: "人工智能" }, ownerCookie);
+    assert.ok(renameAi.status < 400, `改名文章标签失败：${renameAi.status}`);
+    await renameAi.arrayBuffer();
+    assert.match(await (await fetch(`${origin}/zh/articles/http-article-ai`)).text(), /人工智能/);
+
+    const afterAiRename = await (await fetch(`${origin}/admin/articles/tags`, { headers: { cookie: ownerCookie } })).text();
+    const removeAiForm = getProjectForm(afterAiRename, (form) =>
+      form.includes('name="intent" value="delete"') && form.includes('name="id" value="http-tag-ai"'),
+    );
+    const removeResponse = await submitProjectAction("/admin/articles/tags", removeAiForm, {}, ownerCookie);
+    assert.ok(removeResponse.status < 400, `移除标签失败：${removeResponse.status}`);
+    await removeResponse.arrayBuffer();
+    const remainingArticle = await prisma.article.findUnique({ where: { id: "http-article-ai" }, include: { tags: true } });
+    assert.equal(remainingArticle?.status, "PUBLISHED");
+    assert.equal(remainingArticle?.tags.length, 0);
+    const publicList = await (await fetch(`${origin}/zh/articles`)).text();
+    assert.match(publicList, /AI 技术文章/);
+    assert.doesNotMatch(publicList, /人工智能/);
+    const staleTag = await (await fetch(`${origin}/zh/articles?tag=http-tag-ai`)).text();
+    assert.match(staleTag, /所选标签已失效/);
+
+    const afterRemove = await (await fetch(`${origin}/admin/articles/tags`, { headers: { cookie: ownerCookie } })).text();
+    const removeCreatedForm = getProjectForm(afterRemove, (form) =>
+      form.includes('name="intent" value="delete"') && form.includes(`name="id" value="${createdTag.id}"`),
+    );
+    const removeCreated = await submitProjectAction("/admin/articles/tags", removeCreatedForm, {}, ownerCookie);
+    assert.ok(removeCreated.status < 400, `移除新标签失败：${removeCreated.status}`);
+    await removeCreated.arrayBuffer();
+    assert.equal(await prisma.tag.findUnique({ where: { id: createdTag.id } }), null);
+  } finally {
+    await stopServer();
+    await prisma.user.deleteMany({ where: { id: { in: [ownerId, visitorId] } } });
+    await startServer(false);
+  }
 });
 
 test("首页未配置介绍、联系入口和社交链接时省略相应内容", async () => {
