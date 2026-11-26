@@ -731,17 +731,14 @@ test("首页文案和入口随滚动淡出，手机页面仍可正常滚动", { 
     );
     const touch = await mobilePage.context().newCDPSession(mobilePage);
     const scrollGesture = {
-      x: 195,
-      y: 650,
+      x: 8,
+      y: 800,
       yDistance: -320,
       speed: 700,
       gestureSourceType: "touch",
     };
-    // CI 软渲染偶尔会丢掉首个合成手势；补发一次后仍断言手机页面实际滚动。
-    for (let attempt = 0; attempt < 2; attempt += 1) {
-      await touch.send("Input.synthesizeScrollGesture", scrollGesture);
-      if (await mobilePage.evaluate(() => scrollY >= 150)) break;
-    }
+    // 从首屏左下方的内容区外发起触摸，避免手势被 Hero 文案或入口区域命中。
+    await touch.send("Input.synthesizeScrollGesture", scrollGesture);
     await mobilePage.waitForFunction(() => scrollY >= 150, null, { timeout: 15_000 });
     assert.ok(Number(await mobilePage.locator(".home-hero__content").evaluate((element) => getComputedStyle(element).opacity)) < 1);
     assert.ok(await mobilePage.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
