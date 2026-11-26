@@ -86,9 +86,10 @@ async function reservePort() {
 before(async () => {
   const port = await reservePort();
   origin = `http://127.0.0.1:${port}`;
+  const nextCommand = process.env.TEST_NEXT_COMMAND === "start" ? "start" : "dev";
   server = spawn(
     "pnpm",
-    ["exec", "next", "dev", "--hostname", "127.0.0.1", "--port", String(port)],
+    ["exec", "next", nextCommand, "--hostname", "127.0.0.1", "--port", String(port)],
     {
       cwd: projectRoot,
       stdio: ["ignore", "pipe", "pipe"],
