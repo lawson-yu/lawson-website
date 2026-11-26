@@ -2,14 +2,19 @@
 
 import { useActionState } from "react";
 import type { FormEvent } from "react";
-import type { Article } from "@/generated/prisma/client";
+import Link from "next/link";
+import type { Article, Tag } from "@/generated/prisma/client";
 import { saveArticle, type ArticleActionState } from "@/server/article-actions";
 
 const initialState: ArticleActionState = { revision: 0, values: {} };
 
-export function ArticleEditor({ article }: { article?: Article }) {
+export function ArticleEditor({ article, tags }: {
+  article?: Article & { tags: Tag[] };
+  tags: Array<Pick<Tag, "id" | "name">>;
+}) {
   const [state, action, pending] = useActionState(saveArticle, initialState);
   const values = state.values;
+  const selectedTagIds = values.tagIds ?? article?.tags.map(({ id }) => id) ?? [];
   const isPublished = article?.status === "PUBLISHED";
   const isWithdrawn = article?.status === "WITHDRAWN";
   const slugIsFixed = Boolean(article?.firstPublishedAt);
@@ -63,6 +68,29 @@ export function ArticleEditor({ article }: { article?: Article }) {
           rows={3}
           defaultValue={values.excerpt ?? article?.excerpt ?? ""}
         />
+      </div>
+
+      <div className="article-editor__field article-editor__field--tags">
+        <fieldset className="article-editor__tags">
+          <legend>文章标签</legend>
+          {tags.length ? (
+            <div className="article-editor__tag-options">
+              {tags.map((tag) => (
+                <label className="article-editor__tag-option" key={tag.id}>
+                  <input
+                    type="checkbox"
+                    name="tagIds"
+                    value={tag.id}
+                    defaultChecked={selectedTagIds.includes(tag.id)}
+                  />
+                  {tag.name}
+                </label>
+              ))}
+            </div>
+          ) : (
+            <p>还没有标签。<Link href="/admin/articles/tags">先创建标签</Link>后即可添加到文章。</p>
+          )}
+        </fieldset>
       </div>
 
       <div className="article-editor__field article-editor__field--compact">

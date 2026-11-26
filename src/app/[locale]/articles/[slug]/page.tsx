@@ -157,7 +157,11 @@ async function ArticlePageContent({ params }: ArticlePageProps) {
             </p>
             {article.tags.length > 0 && (
               <div className="article-reading__tags" aria-label={t("tags")}>
-                {article.tags.map((tag) => <span key={tag.id}>{tag.name}</span>)}
+                {article.tags.map((tag) => (
+                  <Link href={`/articles?tag=${encodeURIComponent(tag.id)}`} key={tag.id}>
+                    {tag.name}
+                  </Link>
+                ))}
               </div>
             )}
             {article.coverImageKey && (

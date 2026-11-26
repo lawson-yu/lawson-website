@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArticleEditor } from "@/components/admin/article-editor";
 import { requireSiteOwner } from "@/server/auth";
-import { getAdminArticle } from "@/server/articles";
+import { getAdminArticle, getAdminTags } from "@/server/articles";
 import "@/app/(admin)/admin/articles/articles-admin.css";
 
 export function ArticleEditorPage({ articleId }: { articleId?: string }) {
@@ -16,7 +16,10 @@ export function ArticleEditorPage({ articleId }: { articleId?: string }) {
 
 async function ArticleEditorContent({ articleId }: { articleId?: string }) {
   await requireSiteOwner();
-  const article = articleId ? await getAdminArticle(articleId) : undefined;
+  const [article, tags] = await Promise.all([
+    articleId ? getAdminArticle(articleId) : undefined,
+    getAdminTags(),
+  ]);
   if (articleId && !article) notFound();
 
   return (
@@ -38,7 +41,7 @@ async function ArticleEditorContent({ articleId }: { articleId?: string }) {
             </Link>
           )}
         </div>
-        <ArticleEditor article={article ?? undefined} />
+        <ArticleEditor article={article ?? undefined} tags={tags.map(({ id, name }) => ({ id, name }))} />
       </section>
     </main>
   );
