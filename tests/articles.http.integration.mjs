@@ -131,30 +131,38 @@ after(async () => {
 });
 
 test("双语文章列表与详情仅公开已发布文章，其他地址返回真实 404", async () => {
+  const production = process.env.TEST_NEXT_COMMAND === "start";
+
   for (const locale of ["zh", "en"]) {
     const listResponse = await fetch(`${origin}/${locale}/articles`);
     const list = await listResponse.text();
 
     assert.equal(listResponse.status, 200);
-    assert.match(list, /已发布的文章/);
-    assert.match(list, new RegExp(`href="/${locale}/articles/published-article"`));
-    assert.doesNotMatch(list, /未发布的文章|已撤下的文章/);
+    assert.match(list, locale === "zh" ? /最新文章/ : /Latest articles/);
 
-    const detailResponse = await fetch(`${origin}/${locale}/articles/published-article`);
-    const detail = await detailResponse.text();
+    if (production) {
+      assert.match(list, /文章正在整理中|Articles are being prepared/);
+    } else {
+      assert.match(list, /已发布的文章/);
+      assert.match(list, new RegExp(`href="/${locale}/articles/published-article"`));
+      assert.doesNotMatch(list, /未发布的文章|已撤下的文章/);
 
-    assert.equal(detailResponse.status, 200);
-    assert.match(detail, /已发布的文章/);
-    assert.match(detail, /Lawson/);
-    assert.match(detail, /主要内容/);
-    assert.match(detail, /<h2 id="主要内容">/);
-    assert.match(detail, /article-reading__tags/);
-    assert.match(detail, /AI/);
-    assert.match(detail, /article-reading__cover/);
-    assert.match(detail, /<time dateTime=/i);
-    assert.match(detail, /文章摘要/);
-    assert.match(detail, new RegExp(`<html[^>]*lang="${locale}"`));
-    assert.match(detail, /<article[^>]*lang="zh"/);
+      const detailResponse = await fetch(`${origin}/${locale}/articles/published-article`);
+      const detail = await detailResponse.text();
+
+      assert.equal(detailResponse.status, 200);
+      assert.match(detail, /已发布的文章/);
+      assert.match(detail, /Lawson/);
+      assert.match(detail, /主要内容/);
+      assert.match(detail, /<h2 id="主要内容">/);
+      assert.match(detail, /article-reading__tags/);
+      assert.match(detail, /AI/);
+      assert.match(detail, /article-reading__cover/);
+      assert.match(detail, /<time dateTime=/i);
+      assert.match(detail, /文章摘要/);
+      assert.match(detail, new RegExp(`<html[^>]*lang="${locale}"`));
+      assert.match(detail, /<article[^>]*lang="zh"/);
+    }
   }
 
   for (const locale of ["zh", "en"]) {
