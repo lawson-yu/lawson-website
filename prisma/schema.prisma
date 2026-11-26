@@ -13,6 +13,12 @@ datasource db {
   provider = "postgresql"
 }
 
+enum ContentStatus {
+  DRAFT
+  PUBLISHED
+  WITHDRAWN
+}
+
 model Project {
   id          String   @id @default(cuid())
   slug        String   @unique
@@ -24,6 +30,32 @@ model Project {
   updatedAt   DateTime @updatedAt
 
   @@index([featured, createdAt])
+}
+
+model Article {
+  id               String        @id @default(cuid())
+  slug             String?       @unique
+  title            String        @default("")
+  excerpt          String        @default("")
+  bodyLanguage     String?
+  body             String        @default("")
+  coverImageKey    String?
+  searchText       String        @default("")
+  status           ContentStatus @default(DRAFT)
+  featuredRank     Int?
+  firstPublishedAt DateTime?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+  tags             Tag[]
+
+  @@index([status, firstPublishedAt, id])
+  @@index([featuredRank])
+}
+
+model Tag {
+  id       String    @id @default(cuid())
+  name     String    @unique
+  articles Article[]
 }
 
 model User {

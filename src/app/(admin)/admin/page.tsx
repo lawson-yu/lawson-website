@@ -25,7 +25,8 @@ async function AdminContent() {
       </header>
       <section className="admin-page__content">
         <h1>管理后台</h1>
-        <p>站长专用空间。文章、作品与首页管理将在对应模块中提供。</p>
+        <p>站长专用空间。管理文章与作品。</p>
+        <Link href="/admin/articles">管理文章</Link>
       </section>
     </main>
   );

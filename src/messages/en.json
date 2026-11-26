@@ -25,6 +25,18 @@
     "servicesDescription": "从设计到开发，让好想法真正被使用。",
     "characterAlt": "由点组成的人物静态图"
   },
+  "Articles": {
+    "title": "Articles",
+    "description": "Notes on project work, technical experiments, and turning ideas into working things.",
+    "latest": "Latest articles",
+    "count": "articles",
+    "empty": "Articles are being prepared. Please check back soon.",
+    "back": "Back to articles",
+    "author": "Lawson",
+    "tags": "Article tags",
+    "contents": "On this page",
+    "continue": "Continue browsing articles"
+  },
   "Footer": {
     "navigation": "站内导航",
     "backToTop": "回到顶部"
