@@ -401,6 +401,231 @@ test("文章列表按发布时间和 ID 排序，并可手动增量加载", { ti
   }
 });
 
+test("文章详情可读长文并从筛选结果恢复浏览状态", { timeout: 45_000 }, async () => {
+  const articleId = "http-article-old-c";
+  const longArticleId = `http-article-long-${randomUUID()}`;
+  const tagId = "http-tag-ai";
+  const articleIds = [
+    "http-article-ai",
+    "http-article-writing",
+    "http-article-new",
+    "http-article-tie-a",
+    "http-article-tie-b",
+    "http-article-old-a",
+    "http-article-old-b",
+    articleId,
+  ];
+  const originalTags = await prisma.article.findMany({
+    where: { id: { in: articleIds } },
+    select: { id: true, tags: { select: { id: true } } },
+  });
+  const longTitle = "窄屏上也需要完整换行的文章标题".repeat(3);
+  const longBody = [
+    "## 第一部分",
+    "",
+    "### 嵌套章节",
+    "",
+    "## 第二部分",
+    "",
+    "```ts",
+    `const longLine = "${"mobile-reading ".repeat(24)}";`,
+    "```",
+  ].join("\n");
+  const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+  const page = await context.newPage();
+
+  await prisma.article.create({
+    data: {
+      id: longArticleId,
+      slug: longArticleId,
+      title: longTitle,
+      excerpt: "窄屏长文阅读验收。",
+      bodyLanguage: "zh",
+      body: longBody,
+      status: "PUBLISHED",
+      firstPublishedAt: new Date("2026-11-14T00:00:00.000Z"),
+    },
+  });
+  for (const article of originalTags) {
+    if (!article.tags.some((tag) => tag.id === tagId)) {
+      await prisma.article.update({ where: { id: article.id }, data: { tags: { connect: { id: tagId } } } });
+    }
+  }
+
+  try {
+    await page.goto(`${origin}/zh/articles?q=${encodeURIComponent("文章")}&tag=${tagId}`);
+    await page.waitForFunction(() => document.querySelectorAll(".article-card__title").length === 6);
+    await page.getByRole("link", { name: "加载更多文章" }).click();
+    await page.waitForURL((url) => url.searchParams.get("limit") === "12");
+    await page.waitForFunction(() => document.querySelectorAll(".article-card__title").length === 8);
+
+    await page.locator(".article-card__title").last().focus();
+    await page.keyboard.press("Enter");
+    await page.waitForURL((url) => url.pathname.endsWith(`/articles/${articleId}`));
+
+    const returnUrl = new URL(await page.locator(".article-reading__back").getAttribute("href"), origin);
+    assert.equal(returnUrl.pathname, "/zh/articles");
+    assert.equal(returnUrl.searchParams.get("q"), "文章");
+    assert.equal(returnUrl.searchParams.get("tag"), tagId);
+    assert.equal(returnUrl.searchParams.get("limit"), "12");
+
+    await page.getByRole("button", { name: "EN", exact: true }).click();
+    await page.waitForURL((url) => url.pathname === `/en/articles/${articleId}`);
+    await page.waitForFunction(() => document.documentElement.lang === "en");
+    const englishReturnUrl = new URL(await page.getByRole("link", { name: "Back to articles", exact: true }).getAttribute("href"), origin);
+    assert.equal(englishReturnUrl.searchParams.get("q"), "文章");
+    assert.equal(englishReturnUrl.searchParams.get("tag"), tagId);
+    assert.equal(englishReturnUrl.searchParams.get("limit"), "12");
+    await page.getByRole("button", { name: "中", exact: true }).click();
+    await page.waitForURL((url) => url.pathname === `/zh/articles/${articleId}`);
+    await page.waitForFunction(() => document.documentElement.lang === "zh");
+
+    await page.goBack();
+    await page.waitForURL((url) => url.pathname === "/zh/articles" && url.searchParams.get("limit") === "12");
+    await page.waitForFunction(
+      (title) => document.activeElement?.textContent === title,
+      "较早文章 C",
+    );
+    assert.equal(await page.locator(".article-card__title").count(), 8);
+
+    await page.locator(".article-card__title").last().focus();
+    await page.keyboard.press("Enter");
+    await page.waitForURL((url) => url.pathname.endsWith(`/articles/${articleId}`));
+    await page.getByRole("link", { name: "返回文章列表", exact: true }).click();
+    await page.waitForURL((url) => url.pathname === "/zh/articles" && url.searchParams.get("limit") === "12");
+    await page.waitForFunction(
+      (title) => document.activeElement?.textContent === title,
+      "较早文章 C",
+    );
+
+    await page.goto(`${origin}/zh/articles/${longArticleId}`);
+    await page.locator(".article-reading__contents").waitFor({ state: "visible" });
+    assert.equal(await page.locator(".article-reading__contents a").count(), 3);
+
+    const mobileContext = await browser.newContext({ viewport: { width: 390, height: 844 } });
+    const mobilePage = await mobileContext.newPage();
+    try {
+      await mobilePage.goto(`${origin}/zh/articles/${longArticleId}`);
+      for (const selector of [".article-reading__back", ".article-reading__end a"]) {
+        const destination = new URL(await mobilePage.locator(selector).getAttribute("href"), origin);
+        assert.equal(destination.pathname, "/zh/articles");
+        assert.equal(destination.search, "");
+      }
+      const mobileContents = mobilePage.locator(".article-reading__contents-mobile");
+      assert.equal(await mobileContents.isVisible(), true);
+      assert.equal(await mobileContents.getAttribute("open"), null);
+      assert.equal(
+        await mobilePage.locator(".article-reading__opening h1").evaluate((element) => getComputedStyle(element).overflowWrap),
+        "anywhere",
+      );
+      const codeBlock = mobilePage.locator(".article-reading__body pre");
+      await codeBlock.waitFor({ state: "visible" });
+      const codeMetrics = await codeBlock.evaluate((element) => ({
+        scrollWidth: element.scrollWidth,
+        clientWidth: element.clientWidth,
+        whiteSpace: getComputedStyle(element).whiteSpace,
+        overflowX: getComputedStyle(element).overflowX,
+        textLength: element.textContent?.length,
+      }));
+      assert.ok(codeMetrics.scrollWidth > codeMetrics.clientWidth, JSON.stringify(codeMetrics));
+      assert.equal(await mobilePage.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+
+      await mobileContents.locator("summary").click();
+      const nestedHeading = mobilePage.locator(".article-reading__body h3");
+      const headingId = await nestedHeading.getAttribute("id");
+      await mobileContents.getByRole("link", { name: "嵌套章节" }).click();
+      assert.equal(await mobilePage.evaluate(() => decodeURIComponent(location.hash.slice(1))), headingId);
+    } finally {
+      await mobileContext.close();
+    }
+  } finally {
+    await context.close();
+    await prisma.article.delete({ where: { id: longArticleId } });
+    for (const { id, tags } of originalTags) {
+      await prisma.article.update({ where: { id }, data: { tags: { set: tags.map(({ id: tag }) => ({ id: tag })) } } });
+    }
+  }
+});
+
+test("文章撤下后从阅读页返回列表结果顶部", { timeout: 45_000 }, async () => {
+  const articleId = "http-article-old-c";
+  const token = randomUUID();
+  const ownerId = `article-return-owner-${randomUUID()}`;
+  await prisma.user.create({
+    data: {
+      id: ownerId,
+      name: "文章返回验收站长",
+      email: ownerEmail,
+      emailVerified: true,
+      sessions: {
+        create: {
+          id: `article-return-session-${randomUUID()}`,
+          token,
+          expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+        },
+      },
+    },
+  });
+  await stopServer();
+  await startServer(true);
+  const cookie = sessionCookie(token);
+  const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+  const page = await context.newPage();
+  const original = await prisma.article.findUnique({ where: { id: articleId } });
+  assert.ok(original);
+
+  async function submitArticle(intent) {
+    const editorResponse = await fetch(`${origin}/admin/articles/${articleId}`, { headers: { cookie } });
+    assert.equal(editorResponse.status, 200);
+    const editor = await editorResponse.text();
+    const form = getProjectForm(editor, (candidate) => candidate.includes(`value="${intent}"`));
+    const response = await submitProjectAction(`/admin/articles/${articleId}`, form, {
+      intent,
+      title: original.title,
+      excerpt: original.excerpt,
+      bodyLanguage: original.bodyLanguage,
+      body: original.body,
+      slug: original.slug,
+      tagIds: "",
+    }, cookie);
+    await response.arrayBuffer();
+    assert.ok(response.status < 400, `文章${intent}失败：${response.status}`);
+  }
+
+  try {
+    await page.goto(`${origin}/zh/articles?q=${encodeURIComponent("文章")}`);
+    await page.waitForFunction(() => document.querySelectorAll(".article-card__title").length === 6);
+    await page.getByRole("link", { name: "加载更多文章" }).click();
+    await page.waitForURL((url) => url.searchParams.get("limit") === "12");
+    await page.waitForFunction(() => document.querySelectorAll(".article-card__title").length === 8);
+    await page.locator(".article-card__title").last().focus();
+    await page.keyboard.press("Enter");
+    await page.waitForURL((url) => url.pathname.endsWith(`/articles/${articleId}`));
+
+    await submitArticle("withdraw");
+    await page.evaluate(() => window.sessionStorage.clear());
+    await page.locator(".article-reading__back").click();
+    await page.waitForURL((url) => url.pathname === "/zh/articles" && url.searchParams.get("limit") === "12");
+    await page.waitForFunction(() => document.querySelectorAll(".article-card__title").length === 7);
+    assert.equal(await page.getByRole("link", { name: "较早文章 C" }).count(), 0);
+    await page.waitForFunction(() => {
+      const grid = document.querySelector(".articles-index__grid");
+      const top = grid?.getBoundingClientRect().top;
+      return typeof top === "number" && top >= -1 && top < 120;
+    });
+    const gridTop = await page.locator(".articles-index__grid").evaluate((element) => element.getBoundingClientRect().top);
+    assert.ok(gridTop >= -1 && gridTop < 120, `列表应回到结果顶部，实际 top=${gridTop}`);
+  } finally {
+    await context.close();
+    const article = await prisma.article.findUnique({ where: { id: articleId } });
+    if (article?.status === "WITHDRAWN") await submitArticle("publish");
+    await prisma.session.deleteMany({ where: { userId: ownerId } });
+    await prisma.user.delete({ where: { id: ownerId } });
+    await stopServer();
+    await startServer();
+  }
+});
+
 test("滚动到文章列表末尾时自动加载下一批", { timeout: 20_000 }, async () => {
   const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
   const page = await context.newPage();
