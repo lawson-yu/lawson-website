@@ -74,10 +74,117 @@ test("临时数据库可以迁移、重复 seed、备份并恢复全部作品", 
   env.DATABASE_URL = `postgresql://test:test@${address}/test`;
   process.env.DATABASE_URL = env.DATABASE_URL;
 
+  const initialMigration = readFileSync(
+    join(root, "prisma", "migrations", "20261106214211_init", "migration.sql"),
+    "utf8",
+  );
+  let legacyDatabase = new Client({ connectionString: env.DATABASE_URL });
+  await legacyDatabase.connect();
+  await legacyDatabase.query(initialMigration);
+  await legacyDatabase.end();
+  execFileSync(
+    "pnpm",
+    ["exec", "prisma", "migrate", "resolve", "--applied", "20261106214211_init"],
+    options,
+  );
+  legacyDatabase = new Client({ connectionString: env.DATABASE_URL });
+  await legacyDatabase.connect();
+  await legacyDatabase.query(
+    `INSERT INTO "Project" ("id", "slug", "name", "description", "url", "featured", "createdAt", "updatedAt")
+     VALUES
+       ('legacy-external', 'legacy-external', '旧外链作品', '保留既有外部作品。', 'https://legacy.example/work', true, '2025-03-04T05:06:07Z', '2025-03-04T05:06:07Z'),
+       ('legacy-internal', 'legacy-internal', '未完成作品', '缺少公开入口的旧作品。', null, false, '2025-04-05T06:07:08Z', '2025-04-05T06:07:08Z'),
+       ('legacy-http-external', 'legacy-http-external', '旧 HTTP 外链作品', '保留有效 HTTP 作品。', 'http://legacy-http.example/work', true, '2025-04-06T06:07:08Z', '2025-04-06T06:07:08Z')`,
+  );
+  await legacyDatabase.end();
+
   execFileSync("pnpm", ["db:migrate:deploy"], options);
+  legacyDatabase = new Client({ connectionString: env.DATABASE_URL });
+  await legacyDatabase.connect();
+  const legacyIndex = await legacyDatabase.query(
+    `SELECT indexname FROM pg_indexes
+     WHERE schemaname = current_schema() AND tablename = 'Project'
+       AND indexname = 'Project_featured_createdAt_idx'`,
+  );
+  assert.equal(legacyIndex.rows.length, 1, "A 阶段保留旧索引");
+  const migratedRanks = await legacyDatabase.query(
+    `SELECT id, featured, "featuredRank" FROM "Project"
+     WHERE id IN ('legacy-external', 'legacy-http-external') ORDER BY "featuredRank"`,
+  );
+  assert.deepEqual(migratedRanks.rows, [
+    { id: "legacy-http-external", featured: true, featuredRank: 1 },
+    { id: "legacy-external", featured: true, featuredRank: 2 },
+  ]);
+  const oldClientWrite = await legacyDatabase.query(
+    `INSERT INTO "Project" ("id", "slug", "name", "description", "url", "createdAt", "updatedAt")
+     VALUES ('old-client-write', 'old-client-write', '旧客户端写入', '只提供旧 schema 字段。', null, NOW(), NOW())
+     RETURNING "featured", "type", "status", "cardTarget", "featuredRank", "firstPublishedAt"`,
+  );
+  assert.deepEqual(oldClientWrite.rows[0], {
+    featured: false,
+    type: "",
+    status: "DRAFT",
+    cardTarget: "INTERNAL",
+    featuredRank: null,
+    firstPublishedAt: null,
+  });
+  await legacyDatabase.query('UPDATE "Project" SET "featured" = true WHERE "id" = $1', ["old-client-write"]);
+  assert.equal(
+    (await legacyDatabase.query('SELECT "featured" FROM "Project" WHERE "id" = $1', ["old-client-write"])).rows[0].featured,
+    true,
+  );
+  await legacyDatabase.end();
   execFileSync("pnpm", ["db:seed"], options);
   execFileSync("pnpm", ["db:seed"], options);
   prisma = getPrisma();
+  const newClientWrite = await prisma.project.create({
+    data: {
+      slug: "new-client-write",
+      name: "新客户端写入",
+      description: "写入新 schema 字段。",
+      type: "工具",
+      cardTarget: "INTERNAL",
+      status: "PUBLISHED",
+      featuredRank: 3,
+    },
+  });
+  const legacyDefaultAfterNewWrite = await prisma.$queryRaw`SELECT "featured" FROM "Project" WHERE "id" = ${newClientWrite.id}`;
+  assert.equal(legacyDefaultAfterNewWrite[0].featured, false, "新客户端不传旧字段时应使用旧字段默认值");
+
+  const legacyExternal = await prisma.project.findUnique({ where: { slug: "legacy-external" } });
+  assert.equal(legacyExternal.status, "PUBLISHED");
+  assert.equal(legacyExternal.cardTarget, "EXTERNAL");
+  assert.equal(legacyExternal.featuredRank, 2);
+  assert.equal(legacyExternal.featured, true);
+  assert.equal(legacyExternal.firstPublishedAt.toISOString(), "2025-03-04T05:06:07.000Z");
+  assert.equal(legacyExternal.url, "https://legacy.example/work");
+
+  const legacyHttpExternal = await prisma.project.findUnique({ where: { slug: "legacy-http-external" } });
+  assert.equal(legacyHttpExternal.status, "PUBLISHED");
+  assert.equal(legacyHttpExternal.cardTarget, "EXTERNAL");
+  assert.equal(legacyHttpExternal.featuredRank, 1);
+  assert.equal(legacyHttpExternal.featured, true);
+  assert.equal(legacyHttpExternal.firstPublishedAt.toISOString(), "2025-04-06T06:07:08.000Z");
+  assert.equal(legacyHttpExternal.url, "http://legacy-http.example/work");
+
+  const legacyInternal = await prisma.project.findUnique({ where: { slug: "legacy-internal" } });
+  assert.equal(legacyInternal.status, "DRAFT");
+  assert.equal(legacyInternal.cardTarget, "INTERNAL");
+  assert.equal(legacyInternal.firstPublishedAt, null);
+
+  const seededExternal = await prisma.project.findUnique({ where: { slug: "personal-website" } });
+  assert.equal(seededExternal.status, "PUBLISHED");
+  assert.equal(seededExternal.cardTarget, "EXTERNAL");
+  assert.equal(seededExternal.type, "个人网站");
+  assert.equal(seededExternal.featuredRank, 1);
+  assert.equal(seededExternal.featured, true);
+
+  const seededInternal = await prisma.project.findUnique({ where: { slug: "side-project" } });
+  assert.equal(seededInternal.status, "DRAFT");
+  assert.equal(seededInternal.cardTarget, "INTERNAL");
+  assert.equal(seededInternal.firstPublishedAt, null);
+  assert.equal(seededInternal.featured, false);
+
   const authUserId = `auth-${randomUUID()}`;
   const authSessionToken = randomUUID();
   await prisma.user.create({
@@ -139,7 +246,7 @@ test("临时数据库可以迁移、重复 seed、备份并恢复全部作品", 
 
   const projects = await prisma.project.findMany({ orderBy: { slug: "asc" } });
   assert.deepEqual(projects.map((project) => project.slug), [
-    "open-source-tool", "personal-website", "side-project",
+    "legacy-external", "legacy-http-external", "legacy-internal", "new-client-write", "old-client-write", "open-source-tool", "personal-website", "side-project",
   ]);
   assert.equal(await prisma.article.count(), 0, "seed 不发布虚构的文章内容");
   const incompleteArticle = await prisma.article.create({ data: { title: "未完成的草稿" } });
@@ -200,7 +307,7 @@ test("临时数据库可以迁移、重复 seed、备份并恢复全部作品", 
   assert.equal(actionArticle?.slug, actionResult.slug);
   assert.equal(actionArticle?.status, "PUBLISHED", "Server Action 应完成撤下后的再次发布");
   await assert.rejects(prisma.$queryRaw`SELECT pg_sleep(10)`, /timeout|timed out/i);
-  assert.equal((await prisma.project.count()), 3);
+  assert.equal((await prisma.project.count()), 8);
 
   mkdirSync(backupDirectory, { recursive: true });
   const oldDumps = ["20000101", "20010101", "20020101"].map((date) => `lawson_website-${date}T000000Z.dump`);

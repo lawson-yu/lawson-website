@@ -181,3 +181,224 @@
   .admin-social-link { grid-template-columns: minmax(0, 1fr); gap: 14px; }
   .admin-social-link__actions { justify-content: flex-end; }
 }
+
+.admin-page__link,
+.admin-projects-back {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  color: var(--site-cyan);
+  text-underline-offset: .25em;
+}
+
+.admin-page__link { margin-top: 1.25rem; }
+
+.admin-page__link:hover,
+.admin-projects-back:hover { text-decoration: underline; }
+
+.admin-projects-page .admin-page__content {
+  width: min(1120px, 100%);
+  margin-top: clamp(40px, 8vh, 80px);
+}
+
+.admin-projects-heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-bottom: 1.8rem;
+}
+
+.admin-projects-back {
+  min-height: 32px;
+  font-size: .87rem;
+}
+
+.admin-projects-heading h1 {
+  margin: .35rem 0;
+  font-size: clamp(2rem, 4vw, 3rem);
+  letter-spacing: -.03em;
+}
+
+.admin-projects-heading p { margin: 0; }
+
+.admin-projects-heading > .admin-page__link {
+  margin: 0;
+}
+
+.admin-project-editor {
+  padding: clamp(1rem, 3vw, 1.8rem);
+  border: 1px solid var(--site-rule);
+  border-radius: 12px;
+  background: var(--site-panel);
+}
+
+.admin-project-editor h2,
+.admin-project-list h2 {
+  margin: 0 0 1rem;
+  font-size: 1.2rem;
+  letter-spacing: -.015em;
+}
+
+.admin-project-form {
+  display: grid;
+  gap: 1rem;
+}
+
+.admin-project-form label {
+  display: grid;
+  min-width: 0;
+  gap: .4rem;
+  color: #e7e8ee;
+  font-size: .9rem;
+}
+
+.admin-project-form__pair {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: .8rem;
+}
+
+.admin-project-form :is(input, select, textarea) {
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  box-sizing: border-box;
+  border: 1px solid #454853;
+  border-radius: 8px;
+  padding: .6rem .7rem;
+  background: #191b21;
+  color: var(--site-ink);
+  font: inherit;
+}
+
+.admin-project-form textarea {
+  resize: vertical;
+  line-height: 1.6;
+}
+
+.admin-project-form .admin-project-form__body {
+  font-family: var(--font-mono);
+  font-size: .9rem;
+  scrollbar-color: #73747b #191b21;
+}
+
+.admin-project-form :is(input, select, textarea):focus-visible {
+  outline: 2px solid var(--site-cyan);
+  outline-offset: 2px;
+}
+
+.admin-project-form :is(input, textarea)::placeholder {
+  color: #b5b6bd;
+}
+
+.admin-project-help {
+  color: var(--site-muted);
+  font-size: .82rem;
+  line-height: 1.55;
+}
+
+.admin-project-form__actions,
+.admin-project-action {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: .7rem;
+}
+
+.admin-project-form__actions button,
+.admin-project-action button {
+  min-height: 44px;
+  border: 1px solid var(--site-ink);
+  border-radius: 8px;
+  padding: 0 1rem;
+  background: var(--site-ink);
+  color: #101012;
+  font: inherit;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.admin-project-action button {
+  border-color: #555760;
+  background: transparent;
+  color: var(--site-ink);
+}
+
+.admin-project-action .admin-project-action__withdraw {
+  border-color: #6d5046;
+  color: #f0c2ad;
+}
+
+.admin-project-form__actions button:disabled,
+.admin-project-action button:disabled {
+  opacity: .6;
+  cursor: wait;
+}
+
+.admin-project-form__actions p,
+.admin-project-action p {
+  margin: 0;
+  color: var(--site-muted);
+  font-size: .88rem;
+}
+
+.admin-project-form__actions p[data-kind="error"],
+.admin-project-action p[data-kind="error"] { color: #f0c2ad; }
+
+.admin-project-form__actions p[data-kind="success"],
+.admin-project-action p[data-kind="success"] { color: #b9edce; }
+
+.admin-project-list { margin-top: 3rem; }
+
+.admin-project-row {
+  border-top: 1px solid var(--site-rule);
+}
+
+.admin-project-row:last-of-type { border-bottom: 1px solid var(--site-rule); }
+
+.admin-project-row summary {
+  display: grid;
+  grid-template-columns: minmax(12rem, 1fr) auto minmax(8rem, auto);
+  align-items: center;
+  gap: 1rem;
+  min-height: 56px;
+  cursor: pointer;
+  list-style-position: inside;
+}
+
+.admin-project-row__title { font-weight: 620; }
+
+.admin-project-row__slug {
+  overflow: hidden;
+  color: var(--site-muted);
+  font: .82rem var(--font-mono);
+  text-overflow: ellipsis;
+}
+
+.admin-project-status {
+  border-radius: 999px;
+  padding: .2rem .58rem;
+  background: #25272d;
+  color: #dedfe4;
+  font-size: .78rem;
+  white-space: nowrap;
+}
+
+.admin-project-status[data-status="PUBLISHED"] { background: #1d3227; color: #b9edce; }
+.admin-project-status[data-status="WITHDRAWN"] { background: #352923; color: #f0c2ad; }
+
+.admin-project-row > .admin-project-editor {
+  margin: 0 0 1rem;
+}
+
+.admin-project-empty { margin: 0; color: var(--site-muted); }
+
+@media (max-width: 640px) {
+  .admin-project-form__pair { grid-template-columns: 1fr; }
+  .admin-project-row summary { grid-template-columns: minmax(0, 1fr) auto; gap: .45rem .8rem; padding-block: .65rem; }
+  .admin-project-row__slug { grid-column: 1 / -1; padding-left: 1.15rem; }
+  .admin-project-form__actions p,
+  .admin-project-action p { width: 100%; }
+}

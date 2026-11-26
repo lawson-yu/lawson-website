@@ -35,15 +35,17 @@ export default async function LocaleLayout({
     <html lang={locale}>
       <body>
         <NextIntlClientProvider messages={messages}>
-          <DesktopSmoothScroll>
-            <Suspense fallback={null}>
-              <PublicNavigation />
-            </Suspense>
-            <div className="public-content">{children}</div>
-            <Suspense fallback={null}>
-              <PublicFooter />
-            </Suspense>
-          </DesktopSmoothScroll>
+          <Suspense fallback={null}>
+            <DesktopSmoothScroll>
+              <Suspense fallback={null}>
+                <PublicNavigation />
+              </Suspense>
+              <div className="public-content">{children}</div>
+              <Suspense fallback={null}>
+                <PublicFooter />
+              </Suspense>
+            </DesktopSmoothScroll>
+          </Suspense>
         </NextIntlClientProvider>
       </body>
     </html>
