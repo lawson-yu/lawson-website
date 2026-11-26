@@ -191,6 +191,7 @@ test("站长可以管理文章，并通过 Server Action 完成发布生命周�
   assert.equal(editorResponse.status, 200);
   assert.match(editor, /保存草稿/);
   assert.match(editor, /发布文章/);
+  assert.match(editor, /data-confirm="确认首次发布到 \/articles\/… 吗？"/);
 
   const invalidPublish = await submitArticleForm(
     "/admin/articles/new",
@@ -256,8 +257,9 @@ test("站长可以管理文章，并通过 Server Action 完成发布生命周�
   const publishedEditorResponse = await fetch(`${origin}${publishedPath}`, { headers });
   const publishedEditor = await publishedEditorResponse.text();
   assert.match(publishedEditor, /保存并立即公开/);
-  assert.match(publishedEditor, /立即更新到公开页面/);
+  assert.match(publishedEditor, /data-confirm="保存后文章将立即更新到公开页面/);
   assert.match(publishedEditor, /撤下文章/);
+  assert.match(publishedEditor, /data-confirm="撤下后文章会从公开列表和收录入口移除/);
   assert.doesNotMatch(publishedEditor, /name="intent" value="publish"/);
 
   const changedSlug = await submitArticleForm(
