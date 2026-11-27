@@ -10,6 +10,7 @@ const eslintConfig = defineConfig([
     // Default ignores of eslint-config-next:
     ".next/**",
     ".pi/**",
+    ".agents/skills/impeccable/scripts/**",
     "out/**",
     "build/**",
     "next-env.d.ts",

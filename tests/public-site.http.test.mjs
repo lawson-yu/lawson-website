@@ -704,9 +704,10 @@ test("滚动到文章列表末尾时自动加载下一批", { timeout: 20_000 },
     const cards = page.locator(".articles-index__grid > li:visible");
     await cards.first().waitFor({ state: "visible" });
     assert.equal(await cards.count(), 5);
-    const loadMore = page.getByRole("link", { name: "加载更多文章" });
-    await loadMore.waitFor({ state: "visible" });
-    await loadMore.scrollIntoViewIfNeeded();
+    await page.evaluate(() => {
+      [...document.querySelectorAll(".articles-index__grid")]
+        .find((grid) => grid.checkVisibility())?.scrollIntoView({ block: "end" });
+    });
     await page.waitForFunction(() => [...document.querySelectorAll(".articles-index__grid > li")]
       .filter((card) => card.checkVisibility()).length === 7, null, { timeout: 8_000 });
     assert.equal(await cards.count(), 7);
