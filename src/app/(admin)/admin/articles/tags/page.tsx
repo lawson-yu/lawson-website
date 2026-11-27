@@ -1,6 +1,6 @@
 import { Suspense } from "react";
-import Link from "next/link";
 import { getTranslations } from "next-intl/server";
+import { AdminShell } from "@/components/admin/admin-shell";
 import { manageArticleTag } from "@/server/tag-actions";
 import { requireSiteOwner } from "@/server/auth";
 import { getAdminTags } from "@/server/articles";
@@ -29,7 +29,7 @@ export default function AdminArticleTagsPage({ searchParams }: TagPageProps) {
 }
 
 async function AdminArticleTagsContent({ searchParams }: TagPageProps) {
-  await requireSiteOwner();
+  const session = await requireSiteOwner();
   const [{ result }, tags] = await Promise.all([searchParams, getAdminTags()]);
   const t = await getTranslations({ locale: "zh", namespace: "Admin" });
   const messageKey = result && Object.hasOwn(resultMessages, result)
@@ -39,32 +39,30 @@ async function AdminArticleTagsContent({ searchParams }: TagPageProps) {
   const error = result === "empty" || result === "duplicate" || result === "missing" || result === "invalid";
 
   return (
-    <main className="admin-page article-admin tag-admin">
-      <header className="admin-page__header">
-        <Link href="/admin">{t("brand")}</Link>
-        <Link href="/admin/articles">{t("backToArticles")}</Link>
-      </header>
-      <section className="article-admin__content">
-        <div className="article-admin__heading">
-          <div>
-            <h1>{t("tagsTitle")}</h1>
-            <p>{t("tagsDescription")}</p>
-          </div>
+    <AdminShell activeSection="tags" userEmail={session.user.email} pageClassName="article-admin tag-admin">
+      <section aria-labelledby="admin-tags-heading">
+        <div className="admin-head">
+          <h1 id="admin-tags-heading">{t("tagsTitle")}</h1>
         </div>
+        <p className="admin-note">{t("tagsDescription")}</p>
 
-        {message && <p className="tag-admin__notice" data-status={error ? "error" : "success"} role="status">{message}</p>}
+        {message && (
+          <p className="tag-admin__notice admin-feedback" data-status={error ? "error" : "success"} role="status">
+            {message}
+          </p>
+        )}
 
         <form action={manageArticleTag} className="tag-admin__create">
           <input type="hidden" name="intent" value="create" />
           <label className="tag-admin__field" htmlFor="new-article-tag">
             {t("createTag")}
-            <input id="new-article-tag" name="name" required />
+            <input id="new-article-tag" name="name" placeholder={t("tagName")} required />
           </label>
-          <button className="article-admin__primary" type="submit">{t("addTag")}</button>
+          <button className="admin-button admin-button--primary" type="submit">{t("addTag")}</button>
         </form>
 
         {tags.length ? (
-          <ul className="tag-admin__list">
+          <ul className="tag-admin__list admin-list">
             {tags.map((tag) => (
               <li className="tag-admin__row" key={tag.id}>
                 <div>
@@ -76,13 +74,13 @@ async function AdminArticleTagsContent({ searchParams }: TagPageProps) {
                       {t("tagName")}
                       <input id={`article-tag-${tag.id}`} name="name" required defaultValue={tag.name} />
                     </label>
-                    <button type="submit">{t("saveTagName")}</button>
+                    <button className="admin-table-action" type="submit">{t("saveTagName")}</button>
                   </form>
                 </div>
                 <form action={manageArticleTag}>
                   <input type="hidden" name="intent" value="delete" />
                   <input type="hidden" name="id" value={tag.id} />
-                  <button className="tag-admin__remove" type="submit" aria-label={t("removeTagLabel", { name: tag.name })}>
+                  <button className="admin-table-action tag-admin__remove" type="submit" aria-label={t("removeTagLabel", { name: tag.name })}>
                     {t("removeTag")}
                   </button>
                 </form>
@@ -90,9 +88,9 @@ async function AdminArticleTagsContent({ searchParams }: TagPageProps) {
             ))}
           </ul>
         ) : (
-          <p className="article-admin__empty">{t("noTags")}</p>
+          <p className="admin-empty">{t("noTags")}</p>
         )}
       </section>
-    </main>
+    </AdminShell>
   );
 }

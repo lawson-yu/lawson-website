@@ -1,10 +1,13 @@
 import { Suspense } from "react";
 import Link from "next/link";
+import { Plus } from "lucide-react";
 import { getTranslations } from "next-intl/server";
 import { requireSiteOwner } from "@/server/auth";
 import { getAdminArticles } from "@/server/articles";
 import { updateFeaturedArticle } from "@/server/article-actions";
+import { AdminShell } from "@/components/admin/admin-shell";
 import { FeaturedManager } from "../_components/featured-manager";
+import { ArticlesTable } from "./_components/articles-table";
 import "./articles-admin.css";
 
 export default function AdminArticlesPage() {
@@ -16,27 +19,53 @@ export default function AdminArticlesPage() {
 }
 
 async function AdminArticlesContent() {
-  await requireSiteOwner();
+  const session = await requireSiteOwner();
   const articles = await getAdminArticles();
   const t = await getTranslations({ locale: "zh", namespace: "Admin" });
 
+  const rows = articles.map((article) => ({
+    id: article.id,
+    title: article.title || t("unnamedArticle"),
+    status: article.status,
+    statusLabel:
+      article.status === "PUBLISHED"
+        ? t("published")
+        : article.status === "WITHDRAWN"
+          ? t("withdrawn")
+          : t("draft"),
+    dateIso: article.updatedAt.toISOString(),
+    dateLabel: article.updatedAt.toISOString().slice(0, 10),
+  }));
+
   return (
-    <main className="admin-page article-admin">
-      <header className="admin-page__header">
-        <Link href="/admin">{t("brand")}</Link>
-        <div className="article-admin__header-actions">
-          <Link href="/admin/articles/tags">{t("manageTags")}</Link>
-          <Link href="/admin/articles/new">{t("newArticle")}</Link>
+    <AdminShell activeSection="articles" userEmail={session.user.email} pageClassName="article-admin">
+      <section aria-labelledby="admin-articles-heading">
+        <div className="admin-head">
+          <h1 id="admin-articles-heading">{t("articlesTitle")}</h1>
+          <Link className="admin-button admin-button--primary" href="/admin/articles/new">
+            <Plus size={17} aria-hidden="true" />
+            {t("newArticle")}
+          </Link>
         </div>
-      </header>
-      <section className="article-admin__content">
-        <div className="article-admin__heading">
-          <div>
-            <h1>{t("articlesTitle")}</h1>
-            <p>{t("articlesDescription")}</p>
-          </div>
-          <Link className="article-admin__primary" href="/admin/articles/new">{t("newArticle")}</Link>
-        </div>
+
+        <ArticlesTable
+          articles={rows}
+          labels={{
+            all: t("allStatus"),
+            draft: t("draft"),
+            published: t("published"),
+            withdrawn: t("withdrawn"),
+            contentStatus: t("contentStatus"),
+            articleTitle: t("articleTitle"),
+            status: t("status"),
+            lastModified: t("lastModified"),
+            actions: t("actions"),
+            edit: t("editLabel"),
+            noContentInStatus: t("noContentInStatus"),
+          }}
+          emptyLabel={t("noArticles")}
+          tableLabel={t("articlesTitle")}
+        />
 
         <FeaturedManager
           kind="article"
@@ -49,32 +78,7 @@ async function AdminArticlesContent() {
             featuredRank: article.featuredRank,
           }))}
         />
-
-        {articles.length ? (
-          <ul className="article-admin__list">
-            {articles.map((article) => (
-              <li key={article.id}>
-                <Link href={`/admin/articles/${article.id}`}>
-                  <span className="article-admin__article-title">{article.title || t("unnamedArticle")}</span>
-                  <span className={`article-admin__status article-admin__status--${article.status.toLowerCase()}`}>
-                    {article.status === "PUBLISHED" ? t("published") : article.status === "WITHDRAWN" ? t("withdrawn") : t("draft")}
-                  </span>
-                  <time dateTime={article.updatedAt.toISOString()}>
-                    {t("updatedAt", { date: new Intl.DateTimeFormat("zh-CN", {
-                      year: "numeric",
-                      month: "short",
-                      day: "numeric",
-                      timeZone: "UTC",
-                    }).format(article.updatedAt) })}
-                  </time>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="article-admin__empty">{t("noArticles")}</p>
-        )}
       </section>
-    </main>
+    </AdminShell>
   );
 }

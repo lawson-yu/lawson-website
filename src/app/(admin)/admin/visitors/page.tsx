@@ -1,8 +1,8 @@
 import { cacheLife, cacheTag } from "next/cache";
 import { getTranslations } from "next-intl/server";
 import { Suspense } from "react";
-import Link from "next/link";
-import { SignOutButton } from "@/components/public-site/public-authentication";
+import { ArrowRight } from "lucide-react";
+import { AdminShell } from "@/components/admin/admin-shell";
 import { requireSiteOwner } from "@/server/auth";
 import { listVisitorRecords, VISITOR_RECORDS_CACHE_TAG } from "@/server/visitors";
 import { VISITOR_RECORD_RETENTION_MONTHS } from "@/lib/visitor-retention";
@@ -36,31 +36,62 @@ async function AdminVisitorsContent() {
   const visitors = await getCachedVisitorRecords();
 
   return (
-    <main className="admin-page admin-visitors-page">
-      <header className="admin-page__header">
-        <Link href="/admin">{t("brand")}</Link>
-        <div>
-          <span>{t("signedIn", { email: session.user.email })}</span>
-          <SignOutButton label={t("signOut")} />
+    <AdminShell activeSection="visitors" userEmail={session.user.email} pageClassName="admin-visitors-page">
+      <section aria-labelledby="admin-visitors-heading">
+        <div className="admin-head">
+          <h1 id="admin-visitors-heading">{t("visitorRecords")}</h1>
+          <span className="admin-visitors__count">{t("visitorCount", { count: visitors.length })}</span>
         </div>
-      </header>
-      <section className="admin-page__content">
-        <div className="admin-visitors__heading">
-          <div>
-            <h1>{t("visitorRecords")}</h1>
-            <p>{t("visitorRecordsDescription", { months: VISITOR_RECORD_RETENTION_MONTHS })}</p>
-          </div>
-          <p className="admin-visitors__count">{t("visitorCount", { count: visitors.length })}</p>
-        </div>
+        <p className="admin-note">{t("visitorRecordsDescription", { months: VISITOR_RECORD_RETENTION_MONTHS })}</p>
 
         <PruneVisitorRecordsForm />
-        {visitors.length === 0 ? (
-          <p className="admin-visitors__empty">{t("noVisitorRecords")}</p>
-        ) : (
+
+        <div className="admin-table" role="region" tabIndex={0} aria-label={t("visitorAccount")}>
+          <table>
+            <thead>
+              <tr>
+                <th>{t("visitorAccount")}</th>
+                <th>{t("firstLogin")}</th>
+                <th>{t("recentLogin")}</th>
+                <th>{t("actions")}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {visitors.map((visitor) => (
+                <tr key={visitor.id}>
+                  <th scope="row">
+                    {visitor.name || t("unnamedVisitor")}
+                    <small>{visitor.email}</small>
+                  </th>
+                  <td>
+                    <time dateTime={visitor.firstLoginAt.toISOString()}>
+                      {formatTime(visitor.firstLoginAt)}
+                    </time>
+                  </td>
+                  <td>
+                    <time dateTime={visitor.lastLoginAt.toISOString()}>
+                      {formatTime(visitor.lastLoginAt)}
+                    </time>
+                  </td>
+                  <td>
+                    <a className="admin-table-action" href={`#visitor-${visitor.id}`}>
+                      {t("viewRecords")} <ArrowRight size={15} aria-hidden="true" />
+                    </a>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {visitors.length === 0 && (
+            <p className="admin-empty">{t("noVisitorRecords")}</p>
+          )}
+        </div>
+
+        {visitors.length > 0 && (
           <ul className="admin-visitors__list">
             {visitors.map((visitor) => (
               <li key={visitor.id}>
-                <article className="admin-visitor">
+                <article className="admin-visitor admin-visit-detail" id={`visitor-${visitor.id}`}>
                   <header className="admin-visitor__header">
                     <div>
                       <h2>{visitor.name || t("unnamedVisitor")}</h2>
@@ -92,15 +123,16 @@ async function AdminVisitorsContent() {
                     <section aria-label={t("articleVisits")}>
                       <h3>{t("articleVisits")} <span>{visitor.articleVisits.length}</span></h3>
                       {visitor.articleVisits.length ? (
-                        <ul>
+                        <ul className="admin-list">
                           {visitor.articleVisits.map((visit) => (
                             <li key={visit.id}>
                               <strong>{visit.title || visit.slug || t("unnamedArticle")}</strong>
                               <span>
                                 {t("firstVisit")} <time dateTime={visit.firstVisitedAt.toISOString()}>{formatTime(visit.firstVisitedAt)}</time>
-                                <br />
+                                {" · "}
                                 {t("recentVisit")} <time dateTime={visit.lastVisitedAt.toISOString()}>{formatTime(visit.lastVisitedAt)}</time>
-                                · {t("visitCount", { count: visit.visitCount })}
+                                {" · "}
+                                {t("visitCount", { count: visit.visitCount })}
                               </span>
                             </li>
                           ))}
@@ -112,15 +144,16 @@ async function AdminVisitorsContent() {
                     <section aria-label={t("projectVisits")}>
                       <h3>{t("projectVisits")} <span>{visitor.projectVisits.length}</span></h3>
                       {visitor.projectVisits.length ? (
-                        <ul>
+                        <ul className="admin-list">
                           {visitor.projectVisits.map((visit) => (
                             <li key={visit.id}>
                               <strong>{visit.name}</strong>
                               <span>
                                 {t("firstVisit")} <time dateTime={visit.firstVisitedAt.toISOString()}>{formatTime(visit.firstVisitedAt)}</time>
-                                <br />
+                                {" · "}
                                 {t("recentVisit")} <time dateTime={visit.lastVisitedAt.toISOString()}>{formatTime(visit.lastVisitedAt)}</time>
-                                · {t("visitCount", { count: visit.visitCount })}
+                                {" · "}
+                                {t("visitCount", { count: visit.visitCount })}
                               </span>
                             </li>
                           ))}
@@ -136,6 +169,6 @@ async function AdminVisitorsContent() {
           </ul>
         )}
       </section>
-    </main>
+    </AdminShell>
   );
 }

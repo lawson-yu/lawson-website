@@ -1,7 +1,9 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { ArrowLeft, ArrowUpRight } from "lucide-react";
 import { getTranslations } from "next-intl/server";
+import { AdminShell } from "@/components/admin/admin-shell";
 import { ArticleEditor } from "@/components/admin/article-editor";
 import { requireSiteOwner } from "@/server/auth";
 import { getAdminArticle, getAdminTags } from "@/server/articles";
@@ -16,35 +18,48 @@ export function ArticleEditorPage({ articleId }: { articleId?: string }) {
 }
 
 async function ArticleEditorContent({ articleId }: { articleId?: string }) {
-  await requireSiteOwner();
+  const session = await requireSiteOwner();
   const [article, tags] = await Promise.all([
     articleId ? getAdminArticle(articleId) : undefined,
     getAdminTags(),
   ]);
   if (articleId && !article) notFound();
   const t = await getTranslations({ locale: "zh", namespace: "Admin" });
+  const statusLabel =
+    article?.status === "PUBLISHED"
+      ? t("published")
+      : article?.status === "WITHDRAWN"
+        ? t("withdrawn")
+        : t("draft");
 
   return (
-    <main className="admin-page article-admin">
-      <header className="admin-page__header">
-        <Link href="/admin">{t("brand")}</Link>
-        <Link href="/admin/articles">{t("backToArticles")}</Link>
-      </header>
-      <section className="article-admin__content article-admin__editor-content">
-        <div className="article-admin__heading">
-          <div>
-            <p className="article-admin__eyebrow">{t("articleLabel")} · {article ? t("editLabel") : t("newLabel")}</p>
-            <h1>{article ? article.title || t("editArticleDraft") : t("writeArticle")}</h1>
-            <p>{t("articleEditorDescription")}</p>
-          </div>
+    <AdminShell activeSection="articles" userEmail={session.user.email} pageClassName="article-admin">
+      <section aria-labelledby="article-editor-heading">
+        <Link className="admin-back" href="/admin/articles">
+          <ArrowLeft size={16} aria-hidden="true" />
+          {t("backToArticles")}
+        </Link>
+        <div className="admin-head">
+          <h1 id="article-editor-heading">
+            {article ? article.title || t("editArticleDraft") : t("writeArticle")}
+          </h1>
+          <span className="admin-status" data-status={statusLabel}>
+            {statusLabel}
+          </span>
           {article?.slug && article.status === "PUBLISHED" && (
-            <Link href={`/zh/articles/${article.slug}`} target="_blank" rel="noreferrer">
-              {t("viewPublicPage")}
+            <Link
+              className="admin-button"
+              href={`/zh/articles/${article.slug}`}
+              target="_blank"
+              rel="noreferrer"
+            >
+              {t("viewPublicPage")} <ArrowUpRight size={15} aria-hidden="true" />
             </Link>
           )}
         </div>
+        <p className="admin-note">{t("articleEditorDescription")}</p>
         <ArticleEditor article={article ?? undefined} tags={tags.map(({ id, name }) => ({ id, name }))} />
       </section>
-    </main>
+    </AdminShell>
   );
 }

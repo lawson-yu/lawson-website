@@ -10,7 +10,7 @@ import {
   withdrawProject,
 } from "@/server/actions/projects";
 
-type ProjectEditorData = {
+export type ProjectEditorData = {
   id: string;
   slug: string;
   name: string;
@@ -84,7 +84,7 @@ function ProjectEditorForm({ project }: { project?: ProjectEditorData }) {
           {t("projectDescription")}
           <textarea name="description" rows={3} defaultValue={project?.description ?? ""} />
         </label>
-        <div className="admin-project-form__pair">
+        <div className="admin-project-form__pair admin-field-pair">
           <label>
             {t("projectType")}
             <select name="type" defaultValue={project?.type ?? ""}>
@@ -137,8 +137,8 @@ function ProjectEditorForm({ project }: { project?: ProjectEditorData }) {
             <option value="en">{t("englishLanguage")}</option>
           </select>
         </label>
-        <div className="admin-project-form__actions">
-          <button type="submit" disabled={saving}>{saving ? t("saving") : published ? t("saveAndUpdateProject") : t("saveDraft")}</button>
+        <div className="admin-project-form__actions admin-actions">
+          <button className="admin-button admin-button--primary" type="submit" disabled={saving}>{saving ? t("saving") : published ? t("saveAndUpdateProject") : t("saveDraft")}</button>
           <p role="status" aria-live="polite" data-kind={saveState?.kind}>{saveState?.message}</p>
         </div>
       </form>
@@ -146,14 +146,14 @@ function ProjectEditorForm({ project }: { project?: ProjectEditorData }) {
       {project && !published && (
         <form action={publishAction} onSubmit={confirmPublish} className="admin-project-action">
           <input type="hidden" name="id" value={project.id} />
-          <button type="submit" disabled={publishing}>{publishing ? t("publishing") : frozen ? t("republish") : t("confirmProjectPublish")}</button>
+          <button className="admin-button admin-button--primary" type="submit" disabled={publishing}>{publishing ? t("publishing") : frozen ? t("republish") : t("confirmProjectPublish")}</button>
           <p role="status" aria-live="polite" data-kind={publishState?.kind}>{publishState?.message}</p>
         </form>
       )}
       {project && published && (
         <form action={withdrawAction} onSubmit={confirmWithdraw} className="admin-project-action">
           <input type="hidden" name="id" value={project.id} />
-          <button className="admin-project-action__withdraw" type="submit" disabled={withdrawing}>{withdrawing ? t("withdrawingProject") : t("withdrawProject")}</button>
+          <button className="admin-button admin-project-action__withdraw" type="submit" disabled={withdrawing}>{withdrawing ? t("withdrawingProject") : t("withdrawProject")}</button>
           <p role="status" aria-live="polite" data-kind={withdrawState?.kind}>{withdrawState?.message}</p>
         </form>
       )}
