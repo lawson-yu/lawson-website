@@ -1,6 +1,7 @@
 import { connection } from "next/server";
 import type { Metadata } from "next";
 import { getTranslations } from "next-intl/server";
+import { ArrowDown, Search } from "lucide-react";
 import { Link } from "@/i18n/navigation";
 import { Suspense } from "react";
 import {
@@ -12,10 +13,11 @@ import {
 } from "@/lib/article-search";
 import { buildListMetadata } from "@/lib/seo";
 import { getPublishedArticles, getPublishedTags } from "@/server/articles";
-import { ArticleCard } from "./_components/article-card";
+import { ArticleListCard } from "./_components/article-list-card";
 import { LoadMoreArticles } from "./_components/load-more-articles";
 import { ArticleReturnFocus } from "./_components/article-return-focus";
 import "./articles.css";
+import "./article-list-presentation.css";
 
 type ArticlesPageProps = {
   params: Promise<{ locale: string }>;
@@ -69,52 +71,73 @@ async function ArticlesPageContent({ params, searchParams }: ArticlesPageProps) 
   );
   const articleSlugs = articles.map(({ slug }) => slug);
   const hasActiveFilter = Boolean(query || selectedTag);
+  const featuredArticle = !hasActiveFilter ? articles[0] : undefined;
+  const listArticles = featuredArticle ? articles.slice(1) : articles;
   const returnTo = buildArticlesHref({ q: query, tag: selectedTag?.id, limit });
 
   return (
     <main className="articles-index">
       <header className="articles-index__hero">
         <div className="articles-index__hero-content">
-          <h1>{t("title")}</h1>
-          <p>{t("description")}</p>
+          <span className="articles-index__wordmark" aria-hidden="true">ARTICLES</span>
+          <div>
+            <h1>{t("title")}</h1>
+            <p>{t("description")}</p>
+          </div>
+          <a className="articles-index__browse" href="#articles-index-title">
+            {t("allTags")} <ArrowDown size={17} aria-hidden="true" />
+          </a>
         </div>
       </header>
+
+      {featuredArticle && (
+        <section className="articles-index__featured" aria-labelledby="articles-latest-title">
+          <h2 className="articles-index__featured-heading" id="articles-latest-title">
+            {t("latest")}
+          </h2>
+          <ArticleListCard article={featuredArticle} locale={locale} returnTo={returnTo} featured />
+        </section>
+      )}
 
       <section className="articles-index__section" aria-labelledby="articles-index-title">
         <ArticleReturnFocus articleSlugs={articleSlugs} />
         <div className="articles-index__section-heading">
-          <h2 id="articles-index-title">{t("latest")}</h2>
-          <span>{articles.length} {t("count")}</span>
+          <h2 id="articles-index-title">
+            {t("allTags")} <span>{articles.length} {t("count")}</span>
+          </h2>
+          <form
+            className="articles-index__search"
+            action={`/${locale}/articles`}
+            method="get"
+            role="search"
+          >
+            <label className="sr-only" htmlFor="articles-search-input">
+              {t("searchLabel")}
+            </label>
+            <button
+              className="articles-index__search-submit"
+              type="submit"
+              aria-label={t("searchSubmit")}
+            >
+              <Search size={18} aria-hidden="true" />
+            </button>
+            <input
+              id="articles-search-input"
+              key={query}
+              className="articles-index__search-input"
+              type="search"
+              name="q"
+              defaultValue={query}
+              placeholder={t("searchPlaceholder")}
+            />
+            {selectedTag && <input type="hidden" name="tag" value={selectedTag.id} />}
+            {hasActiveFilter && (
+              <Link className="articles-index__search-clear" href="/articles">
+                {t("clearFilter")}
+              </Link>
+            )}
+          </form>
         </div>
-
-        <form
-          className="articles-index__search"
-          action={`/${locale}/articles`}
-          method="get"
-          role="search"
-        >
-          <label className="sr-only" htmlFor="articles-search-input">
-            {t("searchLabel")}
-          </label>
-          <input
-            id="articles-search-input"
-            key={query}
-            className="articles-index__search-input"
-            type="search"
-            name="q"
-            defaultValue={query}
-            placeholder={t("searchPlaceholder")}
-          />
-          {selectedTag && <input type="hidden" name="tag" value={selectedTag.id} />}
-          <button className="articles-index__search-submit" type="submit">
-            {t("searchSubmit")}
-          </button>
-          {hasActiveFilter && (
-            <Link className="articles-index__search-clear" href="/articles">
-              {t("clearFilter")}
-            </Link>
-          )}
-        </form>
 
         <nav className="articles-index__filters" aria-label={t("filterByTag")}>
           <Link
@@ -141,15 +164,15 @@ async function ArticlesPageContent({ params, searchParams }: ArticlesPageProps) 
             <Link href="/articles">{t("clearFilter")}</Link>
           </p>
         )}
-        {articles.length ? (
+        {listArticles.length > 0 ? (
           <ul className="articles-index__grid">
-            {articles.map((article) => (
+            {listArticles.map((article) => (
               <li key={article.id}>
-                <ArticleCard article={article} locale={locale} returnTo={returnTo} />
+                <ArticleListCard article={article} locale={locale} returnTo={returnTo} />
               </li>
             ))}
           </ul>
-        ) : (
+        ) : !featuredArticle ? (
           <p className="articles-index__empty" role="status">
             {hasActiveFilter ? (
               <>
@@ -159,7 +182,7 @@ async function ArticlesPageContent({ params, searchParams }: ArticlesPageProps) 
               t("empty")
             )}
           </p>
-        )}
+        ) : null}
         {hasMore && (
           <LoadMoreArticles
             href={buildArticlesHref({
