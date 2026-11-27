@@ -36,12 +36,6 @@
   z-index: 0;
 }
 
-.articles-index__hero .public-cloud__fallback {
-  background-image: url("/images/prototype/article-list/fragment.webp");
-  background-position: center 44%;
-  background-size: cover;
-}
-
 .articles-index__hero-content {
   position: relative;
   z-index: 2;

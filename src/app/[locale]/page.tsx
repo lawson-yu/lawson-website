@@ -94,11 +94,17 @@ function HomeArticleLink({ label }: { label: string }) {
 
 async function HomeFeaturedContent({ locale }: { locale: string }) {
   await connection();
+  const t = await getTranslations({ locale, namespace: "Home" });
 
   return (
     <>
       <HomeArticleShowcase locale={locale} />
-      <HomeParticleTransition locale={locale} />
+      <HomeParticleTransition
+        lead={t("transitionLead")}
+        bridge={t("transitionBridge")}
+        accent={t("transitionAccent")}
+        description={t("transitionDescription")}
+      />
       <HomeProjectShowcase locale={locale} />
     </>
   );

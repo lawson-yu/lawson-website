@@ -80,7 +80,7 @@ async function ArticlesPageContent({ params, searchParams }: ArticlesPageProps) 
   return (
     <main className="articles-index">
       <header className="articles-index__hero">
-        <PublicCloud variant="B" desktopOnly />
+        <PublicCloud variant="B" />
         <div className="articles-index__hero-content">
           <span className="articles-index__wordmark" aria-hidden="true">ARTICLES</span>
           <div>

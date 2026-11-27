@@ -94,6 +94,7 @@
     "continueBrowsing": "继续浏览作品",
     "notFoundTitle": "页面暂不可用",
     "notFoundDescription": "这个作品可能尚未公开、已撤下，或地址有误。",
+    "contents": "项目目录",
     "codeScrollLabel": "代码，可横向滚动"
   },
   "Admin": {

@@ -132,7 +132,7 @@ export function createTimeline(site: HTMLElement, wake: () => void) {
       return y >= layout.os + 0.35 * layout.vh && y < layout.transition - 1.2 * layout.vh;
     },
     at(heroY: number) {
-      if (motion.matches || innerWidth < 768 || y < layout.transition - 0.4 * layout.vh) return scrollAt(y, heroY, layout);
+      if (motion.matches || y < layout.transition - 0.4 * layout.vh) return scrollAt(y, heroY, layout);
       if (layout.process !== undefined && y >= layout.process - layout.vh) return scrollAt(y, heroY, layout);
       return scrollAt(layout.transition + 0.8 * layout.vh, heroY, layout);
     },

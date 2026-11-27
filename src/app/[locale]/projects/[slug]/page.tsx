@@ -5,7 +5,8 @@ import { getTranslations } from "next-intl/server";
 import { notFound } from "next/navigation";
 import { Link } from "@/i18n/navigation";
 import { VisitTracker } from "@/components/public-site/visit-tracker";
-import { ReadingFrame } from "@/components/public-site/reading-frame";
+import { ReadingContents, ReadingFrame } from "@/components/public-site/reading-frame";
+import { getArticleHeadings } from "@/app/[locale]/articles/[slug]/_components/article-markdown";
 import "@/components/public-site/public-cloud.css";
 import "@/components/public-site/reading-frame.css";
 import { resolveMediaUrl } from "@/lib/media-url";
@@ -43,11 +44,13 @@ export default async function ProjectDetailPage({ params }: Props) {
   const project = await getPublishedProject(slug);
   if (!project || !project.body || !project.contentLanguage) notFound();
 
-  const t = await getTranslations("Projects");
+  const t = await getTranslations({ locale, namespace: "Projects" });
   const publishedAt = project.firstPublishedAt ?? project.createdAt;
   const date = new Intl.DateTimeFormat(locale, { dateStyle: "medium" }).format(publishedAt);
   const cover = resolveMediaUrl(project.coverImage);
   const bodyLanguage = getContentLocale(project.contentLanguage);
+  const headings = getArticleHeadings(project.body);
+  const showContents = headings.filter(({ depth }) => depth === 2).length >= 2;
 
   return (
     <>
@@ -79,9 +82,14 @@ export default async function ProjectDetailPage({ params }: Props) {
             <img src={cover} alt="" />
           ) : undefined
         }
+        contents={
+          showContents ? (
+            <ReadingContents headings={headings} label={t("contents")} detailsKey={project.slug} />
+          ) : undefined
+        }
       >
         <p className="content-reading__lede">{project.description}</p>
-        <ProjectMarkdown source={project.body} codeScrollLabel={t("codeScrollLabel")} />
+        <ProjectMarkdown source={project.body} codeScrollLabel={t("codeScrollLabel")} headings={headings} />
         <footer className="content-reading__end project-detail__footer">
           <Link href="/projects">{t("continueBrowsing")}</Link>
         </footer>

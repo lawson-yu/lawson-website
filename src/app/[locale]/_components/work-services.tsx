@@ -94,17 +94,19 @@ export function WorkServices({
                 ))}
               </p>
             </div>
-            <div className="work-services__chart" role="img" aria-label={processChartLabel}>
-              {stages.map((stage, index) => (
-                <div className={`work-services__chart-row work-services__chart-row--${index + 1}`} key={stage.title}>
-                  <span style={{ "--reveal-index": index } as React.CSSProperties}>{stage.chartLabel}</span>
+            <div className="work-services__chart-group">
+              <div className="work-services__chart" role="img" aria-label={processChartLabel}>
+                {stages.map((stage, index) => (
+                  <div className={`work-services__chart-row work-services__chart-row--${index + 1}`} key={stage.title}>
+                    <span style={{ "--reveal-index": index } as React.CSSProperties}>{stage.chartLabel}</span>
+                  </div>
+                ))}
+                <div className="work-services__timeline" aria-hidden="true">
+                  {timeline.map((label) => <span key={label}>{label}</span>)}
                 </div>
-              ))}
-              <div className="work-services__timeline" aria-hidden="true">
-                {timeline.map((label) => <span key={label}>{label}</span>)}
               </div>
+              <p className="work-services__chart-note">{processChartNote}</p>
             </div>
-            <p className="work-services__chart-note">{processChartNote}</p>
             <div className="work-services__stages">
               {stages.map((stage, index) => (
                 <article className="work-services__stage" key={stage.title} style={{ "--reveal-index": index } as React.CSSProperties}>

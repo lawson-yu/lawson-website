@@ -94,6 +94,7 @@
     "continueBrowsing": "Keep browsing works",
     "notFoundTitle": "This page is unavailable",
     "notFoundDescription": "The project may be unpublished, withdrawn, or the address may be incorrect.",
+    "contents": "On this page",
     "codeScrollLabel": "Code; scroll horizontally"
   },
   "Admin": {
