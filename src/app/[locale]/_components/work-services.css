@@ -5,7 +5,23 @@
   background: transparent;
   color: #f5f7fa;
 }
-.kin-site .work-services__viewport { position: relative; padding: clamp(64px, 7vw, 100px) 6%; }
+.kin-site .work-services__process::before {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  content: "";
+  background: linear-gradient(
+    180deg,
+    transparent 0%,
+    rgb(0 0 0 / .42) 18%,
+    rgb(0 0 0 / .62) 48%,
+    rgb(0 0 0 / .84) 72%,
+    rgb(0 0 0 / .86) 88%,
+    transparent 100%
+  );
+  pointer-events: none;
+}
+.kin-site .work-services__viewport { position: relative; z-index: 1; padding: clamp(64px, 7vw, 100px) 6%; }
 .kin-site .work-services__inner { position: relative; width: min(100%, 1800px); margin-inline: auto; isolation: isolate; }
 .kin-site .work-services__process :is(.work-services__timeline, .work-services__stage) { text-shadow: 0 1px 4px #000; }
 .kin-site .work-services__intro,
@@ -36,7 +52,7 @@
 .kin-site .work-services__chart-row--3 span { margin-left: 40%; width: 50%; }
 .kin-site .work-services__chart-row--4 span { margin-left: 80%; width: 20%; }
 .kin-site .work-services__timeline { display: flex; justify-content: space-between; gap: 12px; padding-top: 12px; color: #d6e0e8; font-size: 14px; }
-.kin-site .work-services__chart-note { margin: 18px 0 0; color: #d6e0e8; font-size: 14px; }
+.kin-site .work-services__process .work-services__chart-note { margin: 16px 0 0; color: #d6e0e8; font-size: 14px; }
 .kin-site .work-services__stages { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 28px; }
 .kin-site .work-services__stage-number { color: #d6e0e8; font-size: 14px; font-variant-numeric: tabular-nums; }
 .kin-site .work-services__stage h3 { margin: 12px 0 8px; font-size: clamp(21px, 2vw, 27px); font-weight: 400; line-height: 1.3; }
