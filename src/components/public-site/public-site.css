@@ -57,10 +57,12 @@ button:focus-visible {
 }
 
 .public-content {
+  --footer-reveal-radius: 24px;
   position: relative;
   z-index: 1;
-  min-height: 100svh;
-  border-radius: 0 0 24px 24px;
+  /* 圆角进入视口后才开始露出页脚。 */
+  min-height: calc(100svh + var(--footer-reveal-radius));
+  border-radius: 0 0 var(--footer-reveal-radius) var(--footer-reveal-radius);
   background: var(--site-bg);
 }
 
@@ -390,7 +392,7 @@ button:focus-visible {
 
 @media (max-height: 699px), (hover: none), (pointer: coarse) {
   .public-footer { position: static; }
-  .public-content { border-radius: 0; }
+  .public-content { --footer-reveal-radius: 0px; }
 }
 
 @media (max-width: 767px) {
@@ -408,7 +410,7 @@ button:focus-visible {
   .public-footer__contact { grid-template-columns: minmax(0, 1fr); }
   .public-footer__contact h2 { font-size: clamp(36px, 10vw, 56px); }
   .public-footer__navigation { flex-direction: column; }
-  .public-content { border-radius: 0; }
+  .public-content { --footer-reveal-radius: 0px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -421,7 +423,7 @@ button:focus-visible {
     transition-duration: .01ms !important;
   }
   .public-footer { position: static; }
-  .public-content { border-radius: 0; }
+  .public-content { --footer-reveal-radius: 0px; }
 }
 
 .privacy-page {

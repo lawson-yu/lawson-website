@@ -1,4 +1,8 @@
-export function HomeParticleTransition() {
+import { getTranslations } from "next-intl/server";
+
+export async function HomeParticleTransition({ locale }: { locale: string }) {
+  const t = await getTranslations({ locale, namespace: "Home" });
+
   return (
     <section
       className="particle-transition home-particle-transition"
@@ -9,10 +13,10 @@ export function HomeParticleTransition() {
       <div className="particle-transition__pin">
         <div className="particle-transition__copy">
           <h2 id="home-particle-transition-title">
-            <span>从一个想法，<span className="particle-transition__capsule" aria-hidden="true" /></span>
-            <span>到真正<em>可用的产品。</em></span>
+            <span>{t("transitionLead")}<span className="particle-transition__capsule" aria-hidden="true" /></span>
+            <span>{t("transitionBridge")}<em>{t("transitionAccent")}</em></span>
           </h2>
-          <p>用设计理清体验，用代码完成落地。</p>
+          <p>{t("transitionDescription")}</p>
         </div>
       </div>
     </section>

@@ -23,11 +23,11 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   await connection();
   const { locale } = await params;
-  const description = locale === "en" ? "Lawson's personal website" : "Lawson 的个人网站";
+  const t = await getTranslations({ locale, namespace: "Home" });
   return buildHomeMetadata({
     locale,
     title: "LAWSON",
-    description,
+    description: t("siteDescription"),
   });
 }
 
@@ -44,14 +44,14 @@ export default async function HomePage({ params }: HomePageProps) {
         <h1 className="sr-only">Lawson</h1>
         <div className="hero__content">
           <div className="hero__right">
-            <h2 className="hero__heading" lang="en">IDEAS INTO<br />REALITY.</h2>
+            <h2 className="hero__heading">{t("heroHeadingLead")}<br />{t("heroHeadingAccent")}</h2>
             <div className="hero__description">
               <Suspense fallback={null}>
                 <HomeIntroduction />
               </Suspense>
             </div>
           </div>
-          <p className="hero__left" lang="en">STAY CURIOUS.<br />KEEP BUILDING.</p>
+          <p className="hero__left">{t("heroSloganLead")}<br />{t("heroSloganClose")}</p>
           <Suspense fallback={null}>
             <HomeExplore locale={locale} />
           </Suspense>
@@ -98,7 +98,7 @@ async function HomeFeaturedContent({ locale }: { locale: string }) {
   return (
     <>
       <HomeArticleShowcase locale={locale} />
-      <HomeParticleTransition />
+      <HomeParticleTransition locale={locale} />
       <HomeProjectShowcase locale={locale} />
     </>
   );

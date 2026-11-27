@@ -1250,15 +1250,17 @@ test("站长分别管理首页精选顺序与上限，撤下内容可恢复位�
   }
 });
 
-test("双语首页返回对应界面语言和定稿工作流程文案", async () => {
-  for (const locale of ["zh", "en"]) {
+test("双语首页按界面语言显示固定文案", async () => {
+  for (const [locale, copy] of [
+    ["zh", ["从一个想法，<span", '<h2 id="process-title">让想法，', "<h3>UI 与交互设计</h3>"]],
+    ["en", ["From an idea,<span", '<h2 id="process-title">Ideas, ', "<h3>UI and interaction design</h3>"]],
+  ]) {
     const response = await fetch(`${origin}/${locale}`);
     const html = await response.text();
 
     assert.equal(response.status, 200);
     assert.match(html, new RegExp(`<html[^>]*lang="${locale}"`));
-    assert.match(html, /让想法，一步步落地。/);
-    assert.match(html, /UI 与交互设计/);
+    for (const expected of copy) assert.ok(html.includes(expected), `${locale}: ${expected}`);
   }
 });
 
@@ -1315,7 +1317,7 @@ test("首页文案和入口随滚动淡出，手机页面仍可正常滚动", { 
       null,
       { timeout: 15_000 },
     );
-    const desktopHeading = await desktopPage.getByRole("heading", { name: "IDEAS INTO REALITY." }).boundingBox();
+    const desktopHeading = await desktopPage.getByRole("heading", { name: /让想法\s*成为现实。/ }).boundingBox();
     const desktopSlogan = await desktopPage.locator(".hero__left").boundingBox();
     const desktopAction = await desktopPage.locator(".proto-cta").boundingBox();
     assert.ok(desktopHeading.x > 640);
