@@ -1,0 +1,66 @@
+.public-cloud__art {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.public-cloud__fallback,
+.public-cloud__canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  transition: opacity .35s;
+}
+
+.public-cloud__fallback {
+  background: #000 url("/images/character/static-desktop.webp") 74% 62% / auto 155% no-repeat;
+}
+
+.public-cloud__canvas {
+  display: block;
+  opacity: 0;
+}
+
+.public-cloud__art[data-live] .public-cloud__fallback {
+  opacity: 0;
+}
+
+.public-cloud__art[data-live] .public-cloud__canvas {
+  opacity: 1;
+}
+
+.content-reading__art {
+  position: absolute;
+  z-index: -1;
+  inset: 0 0 auto;
+  height: clamp(360px, 39vw, 570px);
+  overflow: clip;
+  opacity: .93;
+}
+
+.content-reading__art::after {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to bottom, transparent 45%, #000 98%), linear-gradient(90deg, rgb(0 0 0 / 25%), rgb(0 0 0 / 52%) 28%, transparent 72%);
+  content: "";
+  pointer-events: none;
+}
+
+.content-reading__art .public-cloud__fallback {
+  background-size: auto 157.25%;
+}
+
+@media (max-width: 700px) {
+  .public-cloud__fallback {
+    background-image: url("/images/character/static-mobile.webp");
+    background-position: 92% 68%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .public-cloud__fallback,
+  .public-cloud__canvas {
+    transition: none;
+  }
+}

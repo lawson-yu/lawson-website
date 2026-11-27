@@ -33,7 +33,7 @@ export function ProjectCard({
         aria-hidden="true"
         style={{ backgroundImage: `url("${cover}")` }}
       >
-        {!project.coverImage && <span className="works-card__cover-title">{project.name}</span>}
+        <span className="works-card__cover-title">{project.name}</span>
       </span>
       <span className="works-card__info">
         <span className="works-card__meta">

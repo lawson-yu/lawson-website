@@ -5,6 +5,9 @@ import { getTranslations } from "next-intl/server";
 import { notFound } from "next/navigation";
 import { Link } from "@/i18n/navigation";
 import { VisitTracker } from "@/components/public-site/visit-tracker";
+import { ReadingFrame } from "@/components/public-site/reading-frame";
+import "@/components/public-site/public-cloud.css";
+import "@/components/public-site/reading-frame.css";
 import { resolveMediaUrl } from "@/lib/media-url";
 import { getContentLocale } from "@/lib/content-language";
 import { buildDetailMetadata } from "@/lib/seo";
@@ -91,15 +94,17 @@ function makeContents(headings: ArticleHeading[]) {
 function TableOfContents({
   headings,
   label,
+  showLabel = true,
 }: {
   headings: ArticleHeading[];
   label: string;
+  showLabel?: boolean;
 }) {
   const sections = makeContents(headings);
 
   return (
     <nav aria-label={label}>
-      <p>{label}</p>
+      {showLabel && <p>{label}</p>}
       <ul>
         {sections.map(({ heading, children }) => (
           <li key={heading.id}>
@@ -135,12 +140,14 @@ export default async function ArticlePage({ params, searchParams }: ArticlePageP
   const coverUrl = resolveMediaUrl(article.coverImageKey);
 
   return (
-    <main className="article-reading">
+    <>
       <VisitTracker kind="article" targetId={article.id} />
-      <article lang={bodyLanguage}>
-        <header className="article-reading__hero">
-          <div className="article-reading__opening">
-            <Link className="article-reading__back" href={returnHref}>
+      <ReadingFrame
+        lang={bodyLanguage}
+        bodyClassName="article-reading__body"
+        heading={
+          <>
+            <Link className="content-reading__back" href={returnHref}>
               <ArrowLeft aria-hidden="true" size={17} />
               {t("back")}
             </Link>
@@ -160,43 +167,40 @@ export default async function ArticlePage({ params, searchParams }: ArticlePageP
                 ))}
               </div>
             )}
-            {coverUrl && (
-              <figure className="article-reading__cover">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={coverUrl} alt="" />
-              </figure>
-            )}
-          </div>
-        </header>
-
-        <div className="article-reading__layout" data-toc={showContents ? "" : undefined}>
-          {showContents && (
+          </>
+        }
+        cover={
+          coverUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={coverUrl} alt="" />
+          ) : undefined
+        }
+        contents={
+          showContents ? (
             <>
-              <aside className="article-reading__contents">
+              <aside className="content-reading__contents">
                 <TableOfContents headings={headings} label={t("contents")} />
               </aside>
-              <details className="article-reading__contents-mobile">
+              <details key={article.slug} className="content-reading__contents-mobile">
                 <summary>
                   {t("contents")}
                   <ChevronDown aria-hidden="true" size={16} />
                 </summary>
-                <TableOfContents headings={headings} label={t("contents")} />
+                <TableOfContents headings={headings} label={t("contents")} showLabel={false} />
               </details>
             </>
-          )}
-
-          <div className="article-reading__body">
-            <p className="article-reading__lede">{article.excerpt}</p>
-            <ArticleMarkdown markdown={article.body} headings={headings} />
-            <footer className="article-reading__end">
-              <Link href={returnHref}>
-                {t("continue")}
-                <ArrowUpRight aria-hidden="true" size={17} />
-              </Link>
-            </footer>
-          </div>
-        </div>
-      </article>
-    </main>
+          ) : undefined
+        }
+      >
+        <p className="content-reading__lede">{article.excerpt}</p>
+        <ArticleMarkdown markdown={article.body} headings={headings} />
+        <footer className="content-reading__end">
+          <Link href={returnHref}>
+            {t("continue")}
+            <ArrowUpRight aria-hidden="true" size={17} />
+          </Link>
+        </footer>
+      </ReadingFrame>
+    </>
   );
 }

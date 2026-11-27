@@ -4,6 +4,8 @@ import { getTranslations } from "next-intl/server";
 import { buildListMetadata } from "@/lib/seo";
 import { getPublishedProjects } from "@/server/projects";
 import { ProjectCard, WorksBrowseLink } from "./_components/project-card";
+import { PublicCloud } from "@/components/public-site/public-cloud";
+import "@/components/public-site/public-cloud.css";
 import { Suspense } from "react";
 
 type Props = { params: Promise<{ locale: string }> };
@@ -37,12 +39,17 @@ async function ProjectsPageContent({ params }: Props) {
   return (
     <main className="works-page">
       <header className="works-intro">
-        <div className="works-intro__title">
-          <h1>{t("title")}</h1>
-          <span aria-hidden="true">WORKS</span>
+        <div className="works-intro__art">
+          <PublicCloud variant="B" />
         </div>
-        <p>{t("description")}</p>
-        {projects.length > 0 && <WorksBrowseLink label={t("browseAll")} />}
+        <div className="works-intro__frame">
+          <div className="works-intro__wordmark" aria-hidden="true"><span>WORKS</span></div>
+          <div className="works-intro__content">
+            <h1>{t("title")}</h1>
+            <p>{t("description")}</p>
+          </div>
+          {projects.length > 0 && <WorksBrowseLink label={t("browseAll")} />}
+        </div>
       </header>
       {projects.length ? (
         <section className="works-grid" id="works-grid" aria-label={t("title")}>
