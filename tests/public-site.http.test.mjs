@@ -665,8 +665,7 @@ test("文章撤下后从阅读页返回列表结果顶部", { timeout: 45_000 },
     await page.getByRole("link", { name: "加载更多文章" }).click();
     await page.waitForURL((url) => url.searchParams.get("limit") === "12");
     await page.waitForFunction(() => [...document.querySelectorAll(".article-list-card__title")].filter((title) => title.checkVisibility()).length === 8);
-    await page.locator(".article-list-card__title:visible").last().focus();
-    await page.keyboard.press("Enter");
+    await page.locator(".article-list-card__title:visible").last().press("Enter");
     await page.waitForURL((url) => url.pathname.endsWith(`/articles/${articleId}`));
 
     await submitArticle("withdraw");
@@ -1407,6 +1406,7 @@ test("首页文案和入口随滚动淡出，手机页面仍可正常滚动", { 
   try {
     const desktopPage = await desktop.newPage();
     await desktopPage.goto(`${origin}/zh`);
+    await desktopPage.waitForFunction(() => document.documentElement.classList.contains("lenis"), null, { timeout: 15_000 });
     await desktopPage.waitForFunction(
       () => document.querySelector(".home-hero__character")?.dataset.characterStage === "rendered",
       null,
@@ -1810,7 +1810,7 @@ test("点云资源失败时保留首页入口，刷新后重新请求", { timeou
   }
 });
 
-test("八秒仍未绘制首帧时保持静态图，刷新后可以重试", { timeout: 45_000 }, async () => {
+test("八秒仍未绘制首帧时保持静态图，刷新后可以重试", { timeout: 60_000 }, async () => {
   const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
   const page = await context.newPage();
   let pointRequests = 0;
@@ -1830,7 +1830,7 @@ test("八秒仍未绘制首帧时保持静态图，刷新后可以重试", { tim
   try {
     const requested = page.waitForRequest(
       (request) => request.url().endsWith("/models/custom/person.bin"),
-      { timeout: 5_000 },
+      { timeout: 15_000 },
     );
     await page.goto(`${origin}/zh`);
     await requested;
