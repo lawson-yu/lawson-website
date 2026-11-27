@@ -315,11 +315,15 @@ function startCloud(canvas: HTMLCanvasElement, variant: HeadingVariant, personSc
         sync();
       });
       const resize = new ResizeObserver(() => { resized = true; });
-      const heading = art.parentElement!.parentElement!;
+      const heading = art.closest("header") ?? art.parentElement!;
       const finePointer = window.matchMedia("(hover: hover) and (pointer: fine)");
       const move = (event: PointerEvent) => {
         if (!finePointer.matches || event.pointerType !== "mouse") return;
-        const bounds = heading.getBoundingClientRect();
+        const bounds = canvas.getBoundingClientRect();
+        if (bounds.width <= 0 || bounds.height <= 0 || event.clientY > bounds.bottom) {
+          leave();
+          return;
+        }
         targetX = Math.max(-1, Math.min(1, (event.clientX - bounds.left) / bounds.width * 2 - 1));
         targetY = Math.max(-1, Math.min(1, 1 - (event.clientY - bounds.top) / bounds.height * 2));
         targetHover = 1;
