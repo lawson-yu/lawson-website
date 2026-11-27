@@ -1463,6 +1463,7 @@ test("首页文案和入口随滚动淡出，手机页面仍可正常滚动", { 
       await touch.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: touchPoints(y) });
     }
     await touch.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+    await mobilePage.waitForFunction(() => window.__touchEventCounts.touchend > 0, null, { timeout: 15_000 });
     const touchEvents = await mobilePage.evaluate(() => window.__touchEventCounts);
     assert.ok(touchEvents.touchstart > 0, "触摸滚动应分发 touchstart");
     assert.ok(touchEvents.touchmove > 0, "触摸滚动应分发 touchmove");
