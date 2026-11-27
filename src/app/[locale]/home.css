@@ -160,6 +160,12 @@
   transform: translate3d(0, var(--home-hero-shift, 0px), 0);
 }
 
+.home-hero__explore-description {
+  color: var(--site-muted);
+  font-size: 10px;
+  letter-spacing: .02em;
+}
+
 .home-section {
   position: relative;
   z-index: 1;

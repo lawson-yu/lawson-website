@@ -269,6 +269,7 @@ async function HomeHeroContent() {
       {articles.length > 0 && (
         <p className="home-hero__explore" data-scroll-target="#featured-articles" aria-hidden="true">
           <span className="home-hero__explore-label">{t("explore")}</span>
+          <span className="home-hero__explore-description">{t("exploreDescription")}</span>
         </p>
       )}
     </div>
