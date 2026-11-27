@@ -51,7 +51,7 @@ function CloudScene({
   const current = useRef(size);
   const timeline = useRef<ReturnType<typeof createTimeline> | null>(null);
   const previousTime = useRef<number | null>(null);
-  const drewFrame = useRef(false);
+  const renderedFrames = useRef(0);
   const lost = useRef(false);
 
   const wake = useCallback(() => {
@@ -265,9 +265,10 @@ function CloudScene({
       }
       if (cloud.post) cloud.post.composer.render(dt);
       else gl.render(scene, camera);
-      if (!drewFrame.current) {
-        drewFrame.current = true;
-        onFirstFrame();
+      if (renderedFrames.current < 2) {
+        renderedFrames.current += 1;
+        if (renderedFrames.current === 2) onFirstFrame();
+        else invalidate();
       }
       previousTime.current = active ? now : null;
       if (active) invalidate();

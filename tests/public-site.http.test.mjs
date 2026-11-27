@@ -1293,6 +1293,98 @@ test("站点设置在中英文首页共用原文并按序展示", async () => {
   }
 });
 
+test("首页跨页回访后人物降级与星空阶段保持可见", { timeout: 90_000 }, async () => {
+  const context = await browser.newContext({ viewport: { width: 1280, height: 900 }, deviceScaleFactor: 0.25 });
+  const page = await context.newPage();
+  const articleId = `home-return-${randomUUID()}`;
+
+  try {
+    await preserveCanvasPixels(page);
+    await prisma.article.create({
+      data: {
+        id: articleId,
+        slug: articleId,
+        title: "首页回访复现文章",
+        excerpt: "测试真实站内链接回到首页。",
+        bodyLanguage: "zh",
+        body: "## 回访\n\n测试正文。",
+        status: "PUBLISHED",
+        featuredRank: 1,
+        firstPublishedAt: new Date(),
+      },
+    });
+    await stopServer();
+    await startServer();
+    await page.goto(`${origin}/zh`);
+    await page.waitForFunction(() => document.querySelector(".home-hero__character")?.dataset.characterStage === "rendered", null, { timeout: 15_000 });
+    const featuredArticle = page.locator("#featured-articles .article-showcase__link").first();
+    await featuredArticle.click();
+    await page.waitForURL(/\/zh\/articles\//);
+    await page.getByRole("link", { name: "首页", exact: true }).click();
+    await page.waitForURL(`${origin}/zh`);
+    await page.waitForFunction(() => document.querySelector(".home-hero__character")?.dataset.characterStage === "rendered", null, { timeout: 15_000 });
+
+    const returned = await page.evaluate(() => {
+      const stage = [...document.querySelectorAll(".home-hero__character")].find((element) => element.checkVisibility());
+      const image = stage?.querySelector("img");
+      const canvas = stage?.querySelector("canvas");
+      const transition = document.querySelector(".home-particle-transition__copy");
+      return {
+        opacity: stage ? getComputedStyle(stage).opacity : "missing",
+        imageOpacity: image ? getComputedStyle(image).opacity : "missing",
+        imageLoaded: Boolean(image?.complete && image.naturalWidth),
+        canvasPresent: Boolean(canvas),
+        contextLost: canvas?.getContext("webgl2")?.isContextLost() ?? null,
+        transitionOpacity: transition ? getComputedStyle(transition).opacity : "missing",
+      };
+    });
+    assert.ok(Number(returned.opacity) > 0, `回访后人物层应可见：${JSON.stringify(returned)}`);
+    assert.ok(returned.canvasPresent || (returned.imageLoaded && Number(returned.imageOpacity) > 0), `回访后人物应有可见图像：${JSON.stringify(returned)}`);
+
+    await page.getByRole("button", { name: "EN", exact: true }).click();
+    await page.waitForURL(`${origin}/en`);
+    await page.getByRole("button", { name: "中", exact: true }).click();
+    await page.waitForURL(`${origin}/zh`);
+    await page.waitForFunction(() => [...document.querySelectorAll(".home-hero__character")]
+      .some((element) => element.checkVisibility() && element.dataset.characterStage === "rendered"), null, { timeout: 15_000 });
+
+    await page.evaluate(() => {
+      const transition = document.querySelector(".home-particle-transition");
+      if (transition) window.scrollTo(0, transition.getBoundingClientRect().top + window.scrollY);
+    });
+    await page.waitForTimeout(800);
+    const canvas = page.locator(".home-character__canvas canvas:visible").first();
+    let litPixels = 0;
+    for (let attempt = 0; attempt < 20 && litPixels === 0; attempt++) {
+      const pixels = await readCanvasPixels(canvas);
+      for (let index = 0; index < pixels.length; index += 4) {
+        if (pixels[index] + pixels[index + 1] + pixels[index + 2] > 24) litPixels++;
+      }
+      if (litPixels === 0) await delay(100);
+    }
+    assert.ok(litPixels > 0, `回访后星空人物画布应有非黑像素：${litPixels}`);
+    const transitionOpacity = await page.locator(".particle-transition__copy:visible").evaluate((element) => getComputedStyle(element).opacity);
+    assert.ok(Number(transitionOpacity) > 0, `星空扩散阶段文案应可见：${transitionOpacity}`);
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.waitForTimeout(400);
+
+    await page.evaluate(() => {
+      const canvas = [...document.querySelectorAll(".home-character__canvas canvas")].find((element) => element.checkVisibility());
+      canvas?.getContext("webgl2")?.getExtension("WEBGL_lose_context")?.loseContext();
+    });
+    await page.waitForFunction(() => [...document.querySelectorAll(".home-hero__character")]
+      .some((element) => element.checkVisibility() && element.dataset.characterStage === "static-fallback"), null, { timeout: 5_000 });
+    const fallback = await page.locator(".home-hero__character:visible").evaluate((element) => ({
+      opacity: getComputedStyle(element).opacity,
+      imageOpacity: getComputedStyle(element.querySelector("img")).opacity,
+      imageLoaded: Boolean(element.querySelector("img").naturalWidth),
+    }));
+    assert.ok(Number(fallback.opacity) > 0 && Number(fallback.imageOpacity) > 0 && fallback.imageLoaded, `WebGL 丢失后静态人物必须可见：${JSON.stringify(fallback)}`);
+  } finally {
+    await context.close();
+    await prisma.article.deleteMany({ where: { id: articleId } });
+  }
+});
 test("首页没有精选文章时隐藏滚动提示", async () => {
   const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
   const page = await context.newPage();
