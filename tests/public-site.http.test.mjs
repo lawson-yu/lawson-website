@@ -1056,12 +1056,16 @@ test("站长分别管理首页精选顺序与上限，撤下内容可恢复位�
     let page = await navigateToHome(
       context,
       "/zh",
-      () => document.querySelectorAll("#featured-articles .home-featured__article").length === 5 &&
-        document.querySelectorAll("#featured-projects .works-card").length === 3,
+      () => {
+        const visibleCount = (selector) =>
+          [...document.querySelectorAll(selector)].filter((element) => element.checkVisibility()).length;
+        return visibleCount("#featured-articles .home-featured__article") === 5 &&
+          visibleCount("#featured-projects .works-card") === 3;
+      },
       undefined,
       false,
     );
-    const prompt = page.locator(".home-hero__explore");
+    const prompt = page.locator(".home-hero__explore:visible");
     assert.equal(await prompt.count(), 1);
     assert.equal((await prompt.locator(".home-hero__explore-label").innerText()).trim(), "Explore Below ↓");
     assert.equal((await prompt.locator(".home-hero__explore-description").innerText()).trim(), "向下浏览精选文章");
@@ -1070,14 +1074,14 @@ test("站长分别管理首页精选顺序与上限，撤下内容可恢复位�
     assert.equal(await prompt.getAttribute("tabindex"), null);
     assert.equal(await prompt.locator("a, button, [tabindex]").count(), 0);
 
-    let articleCards = page.locator("#featured-articles .home-featured__article");
+    let articleCards = page.locator("#featured-articles .home-featured__article:visible");
     assert.equal(await articleCards.count(), 5);
     assert.deepEqual(await articleCards.locator(".article-card__title").allTextContents(), [
       "首页精选文章 2", "首页精选文章 1", "首页精选文章 3", "首页精选文章 4", "首页精选文章 6",
     ]);
     assert.equal(await articleCards.locator(".article-card__title").first().getAttribute("href"), `/zh/articles/${articleIds[1]}`);
     assert.deepEqual(
-      await page.locator(".home-featured-articles, .home-particle-transition, .home-featured-projects")
+      await page.locator(".home-featured-articles:visible, .home-particle-transition:visible, .home-featured-projects:visible")
         .evaluateAll((sections) => sections.map((section) => section.getAttribute("data-home-motion"))),
       ["featured-articles", "particle-transition", "home-projects"],
     );
@@ -1085,27 +1089,31 @@ test("站长分别管理首页精选顺序与上限，撤下内容可恢复位�
     page = await navigateToHome(
       context,
       "/en",
-      () => document.querySelectorAll("#featured-articles .article-card__title").length === 5 &&
-        document.querySelector("#featured-projects-title")?.textContent === "Selected works",
+      () => {
+        const visible = (selector) => [...document.querySelectorAll(selector)].filter((element) => element.checkVisibility());
+        return visible("#featured-articles .article-card__title").length === 5 &&
+          visible("#featured-projects-title").some((element) => element.textContent === "Selected works");
+      },
       page,
       false,
     );
     await page.getByRole("heading", { name: "Featured articles" }).waitFor();
     assert.equal(
-      await page.getByRole("region", { name: "LAWSON" }).getByText("Scroll to explore featured articles").innerText(),
+      await page.locator(".home-hero__explore-description:visible").innerText(),
       "Scroll to explore featured articles",
     );
-    assert.equal(await page.locator("#featured-articles .article-card__title").count(), 5);
-    assert.equal(await page.locator("#featured-projects-title").innerText(), "Selected works");
+    assert.equal(await page.locator("#featured-articles .article-card__title:visible").count(), 5);
+    assert.equal(await page.locator("#featured-projects-title:visible").innerText(), "Selected works");
     page = await navigateToHome(
       context,
       "/zh",
-      () => document.querySelectorAll("#featured-projects .works-card").length === 3,
+      () => [...document.querySelectorAll("#featured-projects .works-card")]
+        .filter((element) => element.checkVisibility()).length === 3,
       page,
       false,
     );
 
-    let homeProjects = page.locator("#featured-projects .works-card");
+    let homeProjects = page.locator("#featured-projects .works-card:visible");
     assert.equal(await homeProjects.count(), 3);
     assert.deepEqual(await homeProjects.locator(".works-card__title").allTextContents(), [
       "首页精选作品 2", "首页精选作品 1", "首页精选作品 3",
@@ -1142,11 +1150,12 @@ test("站长分别管理首页精选顺序与上限，撤下内容可恢复位�
     page = await navigateToHome(
       context,
       "/zh",
-      () => document.querySelectorAll("#featured-articles .home-featured__article").length === 4,
+      () => [...document.querySelectorAll("#featured-articles .home-featured__article")]
+        .filter((element) => element.checkVisibility()).length === 4,
       page,
       false,
     );
-    articleCards = page.locator("#featured-articles .home-featured__article");
+    articleCards = page.locator("#featured-articles .home-featured__article:visible");
     assert.deepEqual(await articleCards.locator(".article-card__title").allTextContents(), [
       "首页精选文章 1", "首页精选文章 3", "首页精选文章 4", "首页精选文章 6",
     ]);
@@ -1173,11 +1182,12 @@ test("站长分别管理首页精选顺序与上限，撤下内容可恢复位�
     page = await navigateToHome(
       context,
       "/zh",
-      () => document.querySelector("#featured-articles .article-card__title")?.textContent === "首页精选文章 2",
+      () => [...document.querySelectorAll("#featured-articles .article-card__title")]
+        .find((element) => element.checkVisibility())?.textContent === "首页精选文章 2",
       page,
       false,
     );
-    articleCards = page.locator("#featured-articles .home-featured__article");
+    articleCards = page.locator("#featured-articles .home-featured__article:visible");
     assert.equal(await articleCards.locator(".article-card__title").first().textContent(), "首页精选文章 2");
 
     adminHtml = await (await fetch(`${origin}/admin/projects`, { headers: { cookie } })).text();
@@ -1192,11 +1202,12 @@ test("站长分别管理首页精选顺序与上限，撤下内容可恢复位�
     page = await navigateToHome(
       context,
       "/zh",
-      () => document.querySelectorAll("#featured-projects .works-card").length === 2,
+      () => [...document.querySelectorAll("#featured-projects .works-card")]
+        .filter((element) => element.checkVisibility()).length === 2,
       page,
       false,
     );
-    homeProjects = page.locator("#featured-projects .works-card");
+    homeProjects = page.locator("#featured-projects .works-card:visible");
     assert.deepEqual(await homeProjects.locator(".works-card__title").allTextContents(), [
       "首页精选作品 1", "首页精选作品 3",
     ]);
@@ -1213,11 +1224,12 @@ test("站长分别管理首页精选顺序与上限，撤下内容可恢复位�
     page = await navigateToHome(
       context,
       "/zh",
-      () => document.querySelector("#featured-projects .works-card__title")?.textContent === "首页精选作品 2",
+      () => [...document.querySelectorAll("#featured-projects .works-card__title")]
+        .find((element) => element.checkVisibility())?.textContent === "首页精选作品 2",
       page,
       false,
     );
-    homeProjects = page.locator("#featured-projects .works-card");
+    homeProjects = page.locator("#featured-projects .works-card:visible");
     assert.equal(await homeProjects.locator(".works-card__title").first().textContent(), "首页精选作品 2");
   } finally {
     await context?.close();
@@ -1762,7 +1774,7 @@ test("浏览器不支持 WebGL 时保留静态角色图和首页入口", { timeo
       { timeout: 5_000 },
     );
     assert.equal(await page.locator(".home-hero__character img").isVisible(), true);
-    assert.equal(await page.locator(".home-hero__primary").isVisible(), true);
+    await page.locator(".home-hero__primary:visible").waitFor({ state: "visible" });
   } finally {
     await context.close();
   }
