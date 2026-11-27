@@ -988,7 +988,7 @@ test("站长分别管理首页精选顺序与上限，撤下内容可恢复位�
     let html = await response.text();
     assert.equal(response.status, 200);
     assert.doesNotMatch(html, /id="featured-articles"|id="featured-projects"/);
-    assert.doesNotMatch(html, /class="home-hero__explore"/);
+    assert.doesNotMatch(html, /class="[^"]*\bhome-hero__explore\b[^"]*"/);
 
     await stopServer();
     await startServer(true);
@@ -1067,7 +1067,8 @@ test("站长分别管理首页精选顺序与上限，撤下内容可恢复位�
     );
     const prompt = page.locator(".home-hero__explore:visible");
     assert.equal(await prompt.count(), 1);
-    assert.equal((await prompt.locator(".home-hero__explore-label").innerText()).trim(), "Explore Below ↓");
+    assert.equal((await prompt.locator(".home-hero__explore-label").textContent()).trim(), "Explore Below");
+    assert.equal(await prompt.locator("svg[aria-hidden=true]").count(), 1);
     assert.equal((await prompt.locator(".home-hero__explore-description").innerText()).trim(), "向下浏览精选文章");
     assert.equal(await prompt.evaluate((element) => element.tagName), "P");
     assert.equal(await prompt.getAttribute("aria-hidden"), "true");
@@ -1314,13 +1315,19 @@ test("首页文案和入口随滚动淡出，手机页面仍可正常滚动", { 
       null,
       { timeout: 15_000 },
     );
+    const desktopHeading = await desktopPage.getByRole("heading", { name: "IDEAS INTO REALITY." }).boundingBox();
+    const desktopSlogan = await desktopPage.locator(".hero__left").boundingBox();
+    const desktopAction = await desktopPage.locator(".proto-cta").boundingBox();
+    assert.ok(desktopHeading.x > 640);
+    assert.ok(Math.abs(desktopSlogan.x - desktopAction.x) < 2);
+    assert.ok(desktopSlogan.y + desktopSlogan.height < desktopAction.y);
     await desktopPage.evaluate(() => window.scrollTo({ top: innerHeight * 0.75, behavior: "instant" }));
     await desktopPage.waitForFunction(
-      () => Number(getComputedStyle(document.querySelector(".home-hero__content")).opacity) < 0.5,
+      () => Number(getComputedStyle(document.querySelector(".proto-cta")).opacity) < 0.5,
       null,
       { timeout: 5_000 },
     );
-    assert.ok(Number(await desktopPage.locator(".home-hero__content").evaluate((element) => getComputedStyle(element).opacity)) < 0.5);
+    assert.ok(Number(await desktopPage.locator(".hero__right").evaluate((element) => getComputedStyle(element).opacity)) < 0.5);
   } finally {
     await desktop.close();
   }
@@ -1340,6 +1347,11 @@ test("首页文案和入口随滚动淡出，手机页面仍可正常滚动", { 
       null,
       { timeout: 15_000 },
     );
+    const mobileIntroduction = await mobilePage.locator(".hero__description:visible").boundingBox();
+    const mobileAction = await mobilePage.locator(".proto-cta").boundingBox();
+    const mobileSlogan = await mobilePage.locator(".hero__left").boundingBox();
+    assert.ok(mobileIntroduction.y + mobileIntroduction.height <= mobileAction.y);
+    assert.ok(mobileAction.y + mobileAction.height <= mobileSlogan.y);
     const touch = await mobilePage.context().newCDPSession(mobilePage);
     await mobilePage.evaluate(() => {
       window.__touchEventCounts = { touchstart: 0, touchmove: 0, touchend: 0 };
@@ -1359,7 +1371,7 @@ test("首页文案和入口随滚动淡出，手机页面仍可正常滚动", { 
     assert.ok(touchEvents.touchmove > 0, "触摸滚动应分发 touchmove");
     assert.ok(touchEvents.touchend > 0, "触摸滚动应分发 touchend");
     await mobilePage.waitForFunction(() => scrollY >= 150, null, { timeout: 15_000 });
-    assert.ok(Number(await mobilePage.locator(".home-hero__content").evaluate((element) => getComputedStyle(element).opacity)) < 1);
+    await mobilePage.waitForFunction(() => Number(getComputedStyle(document.querySelector(".proto-cta")).opacity) < 1);
     assert.ok(await mobilePage.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
     assert.ok(await mobilePage.evaluate(() => scrollY > 0));
     await touch.detach();

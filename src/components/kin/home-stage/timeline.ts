@@ -83,8 +83,16 @@ export function createTimeline(site: HTMLElement, wake: () => void) {
     const servEl = site.querySelector<HTMLElement>('[data-screen="services"], .home-services');
     layout.services = servEl ? servEl.getBoundingClientRect().top + scrollY : undefined;
 
-    const footer = site.querySelector<HTMLElement>(".about-footer") ?? document.querySelector<HTMLElement>(".public-footer");
-    layout.footer = footer ? footer.getBoundingClientRect().top + scrollY : undefined;
+    const aboutFooter = site.querySelector<HTMLElement>(".about-footer");
+    if (aboutFooter) {
+      layout.footer = aboutFooter.getBoundingClientRect().top + scrollY;
+    } else if (document.querySelector(".public-footer")) {
+      // .public-footer 在桌面端是 position: sticky; bottom: 0，不能直接取其视口 top。
+      const content = site.closest<HTMLElement>(".public-content") ?? site;
+      layout.footer = content.getBoundingClientRect().bottom + scrollY;
+    } else {
+      layout.footer = undefined;
+    }
 
     updateScroll();
   }
