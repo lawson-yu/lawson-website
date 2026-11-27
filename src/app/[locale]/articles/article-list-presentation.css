@@ -18,13 +18,33 @@
   min-height: clamp(400px, 42vw, 665px);
   align-items: stretch;
   padding: 0;
+  background: #000;
+}
+
+.articles-index__hero::after {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  pointer-events: none;
+  content: "";
   background:
     linear-gradient(0deg, #000 0%, transparent 28%),
-    linear-gradient(90deg, rgb(0 0 0 / .76), transparent 76%),
-    url("/images/prototype/article-list/fragment.webp") center 44% / cover;
+    linear-gradient(90deg, rgb(0 0 0 / .76), transparent 76%);
+}
+
+.articles-index__hero .public-cloud__art {
+  z-index: 0;
+}
+
+.articles-index__hero .public-cloud__fallback {
+  background-image: url("/images/prototype/article-list/fragment.webp");
+  background-position: center 44%;
+  background-size: cover;
 }
 
 .articles-index__hero-content {
+  position: relative;
+  z-index: 2;
   display: grid;
   width: min(100%, 1600px);
   align-content: center;
@@ -457,7 +477,6 @@
 @media (max-width: 700px) {
   .articles-index__hero {
     min-height: 440px;
-    background-position: center 44%;
   }
 
   .articles-index__hero-content {

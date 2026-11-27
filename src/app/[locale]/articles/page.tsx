@@ -12,10 +12,12 @@ import {
   normalizeSearchQuery,
 } from "@/lib/article-search";
 import { buildListMetadata } from "@/lib/seo";
+import { PublicCloud } from "@/components/public-site/public-cloud";
 import { getPublishedArticles, getPublishedTags } from "@/server/articles";
 import { ArticleListCard } from "./_components/article-list-card";
 import { LoadMoreArticles } from "./_components/load-more-articles";
 import { ArticleReturnFocus } from "./_components/article-return-focus";
+import "@/components/public-site/public-cloud.css";
 import "./articles.css";
 import "./article-list-presentation.css";
 
@@ -78,6 +80,7 @@ async function ArticlesPageContent({ params, searchParams }: ArticlesPageProps) 
   return (
     <main className="articles-index">
       <header className="articles-index__hero">
+        <PublicCloud variant="B" desktopOnly />
         <div className="articles-index__hero-content">
           <span className="articles-index__wordmark" aria-hidden="true">ARTICLES</span>
           <div>

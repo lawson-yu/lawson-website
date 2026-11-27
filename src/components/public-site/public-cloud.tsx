@@ -348,25 +348,36 @@ function startCloud(canvas: HTMLCanvasElement, variant: HeadingVariant, personSc
   return stop;
 }
 
-export function PublicCloud({ variant, personScale = 1 }: { variant: HeadingVariant; personScale?: number }) {
+export function PublicCloud({
+  variant,
+  personScale = 1,
+  desktopOnly = false,
+}: {
+  variant: HeadingVariant;
+  personScale?: number;
+  desktopOnly?: boolean;
+}) {
   const canvas = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
     if (!canvas.current) return;
     const element = canvas.current;
     const motion = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const mobile = desktopOnly ? window.matchMedia("(max-width: 700px)") : undefined;
     let stop = () => {};
     const update = () => {
       stop();
-      stop = motion.matches ? () => {} : startCloud(element, variant, personScale);
+      stop = motion.matches || mobile?.matches ? () => {} : startCloud(element, variant, personScale);
     };
     update();
     motion.addEventListener("change", update);
+    mobile?.addEventListener("change", update);
     return () => {
       motion.removeEventListener("change", update);
+      mobile?.removeEventListener("change", update);
       stop();
     };
-  }, [variant, personScale]);
+  }, [variant, personScale, desktopOnly]);
 
   return <div className="public-cloud__art" aria-hidden="true"><div className="public-cloud__fallback" /><canvas className="public-cloud__canvas" ref={canvas} /></div>;
 }
