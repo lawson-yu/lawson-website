@@ -12,6 +12,8 @@ pnpm db:migrate
 pnpm dev
 ```
 
+预置中英文演示文章和站内作品：`pnpm db:seed:demo`。此命令只补充不存在的演示 slug；日常 `pnpm db:seed` 仍只写基础 fixture。
+
 ## 目录导航
 
 ```text
