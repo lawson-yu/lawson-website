@@ -73,6 +73,8 @@
 }
 
 .content-reading__layout {
+  position: relative;
+  z-index: 1;
   display: grid;
   width: min(var(--reading-width), calc(100% - 2 * var(--reading-gutter)));
   grid-template-columns: minmax(0, var(--reading-measure));
