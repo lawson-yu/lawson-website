@@ -311,9 +311,13 @@
     "limitReached": "The homepage selection limit has been reached."
   },
   "Footer": {
-    "navigation": "站内导航",
+    "navigation": "Site navigation",
     "socialNavigation": "Social links",
-    "backToTop": "回到顶部",
+    "contactLead": "The next idea,",
+    "contactEmphasis": "let’s build it together.",
+    "contactDescription": "I use design and code to turn ideas into things you can experience.",
+    "contactInvitation": "Have an idea to bring to life? Let’s start with a conversation.",
+    "backToTop": "Back to top",
     "privacy": "Privacy"
   },
   "Privacy": {

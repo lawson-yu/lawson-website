@@ -313,6 +313,10 @@
   "Footer": {
     "navigation": "站内导航",
     "socialNavigation": "社交链接",
+    "contactLead": "下一个想法，",
+    "contactEmphasis": "一起做出来。",
+    "contactDescription": "我喜欢用设计和代码，把想法变成可以体验的东西。",
+    "contactInvitation": "有想法想要实现？我们可以从一次交流开始。",
     "backToTop": "回到顶部",
     "privacy": "隐私说明"
   },
