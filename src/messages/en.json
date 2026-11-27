@@ -27,7 +27,30 @@
     "processDescription": "从理解问题到上线迭代，四个阶段逐步推进。每一步保持沟通，一起确认下一步。",
     "servicesTitle": "一起创造有用的东西。",
     "servicesDescription": "从设计到开发，让好想法真正被使用。",
-    "characterAlt": "由点组成的人物静态图"
+    "characterAlt": "由点组成的人物静态图",
+    "previewProject": "Preview {name}",
+    "projectShowcaseHint": "Scroll to explore · Select a work to preview",
+    "workProcessTitle": "Ideas, ",
+    "workProcessTitleAccent": "brought to life.",
+    "workProcessDescription": "Four clear stages take a project from understanding the problem to launch and iteration.\nWe stay in touch and agree on each next step.",
+    "processChartLabel": "Relative stages of the workflow; timing varies by project",
+    "processChartNote": "Relative stages only; the pace depends on each project.",
+    "processTimeline": ["Project start", "Set direction", "Design and build", "After launch"],
+    "processStages": [
+      { "title": "Understand the problem", "chartLabel": "Understand", "phase": "Start · learn the context", "description": "Start with the goals, context, and constraints to find the problem worth solving." },
+      { "title": "Set direction", "chartLabel": "Align", "phase": "Early · align on needs", "description": "Map the needs and user journey, then agree on what to build." },
+      { "title": "Design and build", "chartLabel": "Build", "phase": "Middle · work together", "description": "Shape the experience and implement the features until the idea becomes a useful product." },
+      { "title": "Launch and iterate", "chartLabel": "Launch", "phase": "After launch · improve", "description": "Launch, learn from feedback, and keep improving as real needs emerge." }
+    ],
+    "workServicesTitle": "Let's build",
+    "workServicesTitleAccent": "something useful.",
+    "workServicesDescription": "From design through development, turn good ideas into things people can use.",
+    "serviceCards": [
+      { "kind": "design", "title": "UI and interaction design", "description": "Clarify the user journey and turn ideas into a clear, natural experience.", "alt": "Light and lines in a studio, reflecting order and space in design" },
+      { "kind": "frontend", "title": "Frontend web development", "description": "Carry design details through and make the site feel at home on every screen.", "alt": "A laptop on a desk in a web development workspace" },
+      { "kind": "fullstack", "title": "Full stack product development", "description": "Connect interface, business logic, and data into a complete working product.", "alt": "Servers and connected equipment arranged in a row" },
+      { "kind": "agent", "title": "AI agent development", "description": "Connect tools around real tasks and automate repetitive work.", "alt": "A chip and connected traces on a circuit board" }
+    ]
   },
   "Articles": {
     "title": "Articles",
