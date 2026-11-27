@@ -1,6 +1,8 @@
 .public-cloud__art {
   position: absolute;
   inset: 0;
+  overflow: clip;
+  background: #000;
   pointer-events: none;
 }
 
@@ -14,7 +16,9 @@
 }
 
 .public-cloud__fallback {
-  background: #000 url("/images/character/static-desktop.webp") 74% 62% / auto 155% no-repeat;
+  /* 与 WebGL 点云中心（桌面 NDC +0.43 -> 71.5%）严格对齐，避免首屏加载时人物从居中跳到右侧。 */
+  background: #000 url("/images/character/static-desktop.webp") 50% 62% / auto 155% no-repeat;
+  transform: translateX(21.5%);
 }
 
 .public-cloud__canvas {
@@ -54,7 +58,8 @@
 @media (max-width: 700px) {
   .public-cloud__fallback {
     background-image: url("/images/character/static-mobile.webp");
-    background-position: 92% 68%;
+    background-position: 50% 66%;
+    transform: translateX(24%);
   }
 }
 
