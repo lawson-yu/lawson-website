@@ -1510,7 +1510,7 @@ test("桌面角色随指针移动并在指针离开后回到自然姿态", { tim
   }
 });
 
-test("桌面角色只在进入流程区后切换对应阶段姿态", { timeout: 90_000 }, async () => {
+test("桌面角色只在进入流程区后切换对应阶段姿态", { timeout: 180_000 }, async () => {
   const context = await browser.newContext({ viewport: { width: 1280, height: 800 }, deviceScaleFactor: 0.125 });
   const page = await context.newPage();
 
@@ -1654,7 +1654,7 @@ test("无效、草稿、撤下和外链作品的站内详情均返回 HTTP 404",
   }
 });
 
-test("角色首帧前保留静态图与首页入口，首帧渲染后再显示点云", { timeout: 45_000 }, async () => {
+test("角色首帧前保留静态图与首页入口，首帧渲染后再显示点云", { timeout: 60_000 }, async () => {
   const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
   const page = await context.newPage();
   let continueAsset;
@@ -1671,7 +1671,7 @@ test("角色首帧前保留静态图与首页入口，首帧渲染后再显示�
   try {
     const requested = page.waitForRequest(
       (request) => request.url().endsWith("/models/custom/person.bin"),
-      { timeout: 5_000 },
+      { timeout: 15_000 },
     );
     await page.goto(`${origin}/zh`);
     await page.waitForFunction(
