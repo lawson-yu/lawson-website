@@ -528,8 +528,7 @@ test("文章详情可读长文并从筛选结果恢复浏览状态", { timeout: 
     await page.waitForURL((url) => url.searchParams.get("limit") === "12");
     await page.waitForFunction(() => [...document.querySelectorAll(".article-list-card__title")].filter((title) => title.checkVisibility()).length === 8);
 
-    await page.locator(".article-list-card__title:visible").last().focus();
-    await page.keyboard.press("Enter");
+    await page.locator(".article-list-card__title:visible").last().press("Enter");
     await page.waitForURL((url) => url.pathname.endsWith(`/articles/${articleId}`));
 
     const returnUrl = new URL(await page.locator(".content-reading__back").getAttribute("href"), origin);
@@ -557,8 +556,7 @@ test("文章详情可读长文并从筛选结果恢复浏览状态", { timeout: 
     );
     assert.equal(await page.locator(".article-list-card__title:visible").count(), 8);
 
-    await page.locator(".article-list-card__title:visible").last().focus();
-    await page.keyboard.press("Enter");
+    await page.locator(".article-list-card__title:visible").last().press("Enter");
     await page.waitForURL((url) => url.pathname.endsWith(`/articles/${articleId}`));
     await page.getByRole("link", { name: "返回文章列表", exact: true }).click();
     await page.waitForURL((url) => url.pathname === "/zh/articles" && url.searchParams.get("limit") === "12");
