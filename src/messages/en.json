@@ -18,7 +18,8 @@
   "Home": {
     "readArticles": "Browse articles",
     "contact": "Contact me",
-    "explore": "Explore Below ↓",
+    "scrollPosition": "Page scroll position",
+    "explore": "Explore Below",
     "exploreDescription": "Scroll to explore featured articles",
     "featuredArticlesTitle": "Featured articles",
     "featuredProjectsTitle": "Selected works",

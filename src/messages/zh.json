@@ -18,7 +18,8 @@
   "Home": {
     "readArticles": "浏览文章",
     "contact": "联系我",
-    "explore": "Explore Below ↓",
+    "scrollPosition": "页面滚动位置",
+    "explore": "Explore Below",
     "exploreDescription": "向下浏览精选文章",
     "featuredArticlesTitle": "精选文章",
     "featuredProjectsTitle": "首页作品",

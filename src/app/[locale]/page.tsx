@@ -1,7 +1,7 @@
 import Image from "next/image";
 import { connection } from "next/server";
 import type { Metadata } from "next";
-import { ArrowUpRight } from "lucide-react";
+import { ArrowDown, ArrowUpRight } from "lucide-react";
 import { getTranslations } from "next-intl/server";
 import { Suspense } from "react";
 import { Link } from "@/i18n/navigation";
@@ -10,12 +10,14 @@ import { getFeaturedArticles } from "@/server/articles";
 import { getFeaturedProjects } from "@/server/projects";
 import { HomeCharacter } from "./_components/home-character";
 import { HomeParticleTransition } from "./_components/home-particle-transition";
+import { PageScrollbar } from "./_components/page-scrollbar";
 import { getSiteSetting } from "@/server/site-settings";
 import { ArticleCard } from "./articles/_components/article-card";
 import { ProjectCard } from "./projects/_components/project-card";
 import "./articles/articles.css";
 import "./projects/projects.css";
 import "./home.css";
+import "./home-approved.css";
 
 export const instant = false;
 
@@ -95,21 +97,30 @@ export default async function HomePage({ params }: HomePageProps) {
   const t = await getTranslations({ locale, namespace: "Home" });
 
   return (
-    <main className="home-page">
+    <main className="kin-site home-page" id="home-content">
       <HomeCharacter alt={t("characterAlt")} />
-      <section className="home-hero" id="top" aria-label="LAWSON">
-        <Suspense
-          fallback={
-            <div className="home-hero__content" data-home-content-slot>
-              <p className="home-hero__slogan">STAY CURIOUS. KEEP BUILDING.</p>
-              <div className="home-hero__actions">
-                <HomeArticleLink label={t("readArticles")} />
-              </div>
+      <section className="hero home-hero" id="top" data-screen="hero" aria-label="LAWSON">
+        <h1 className="sr-only">Lawson</h1>
+        <div className="hero__content">
+          <div className="hero__right">
+            <h2 className="hero__heading">IDEAS INTO<br />REALITY.</h2>
+            <div className="hero__description">
+              <Suspense fallback={null}>
+                <HomeIntroduction />
+              </Suspense>
             </div>
-          }
-        >
-          <HomeHeroContent />
-        </Suspense>
+          </div>
+          <p className="hero__left home-hero__slogan">STAY CURIOUS.<br />KEEP BUILDING.</p>
+          <Suspense fallback={null}>
+            <HomeExplore locale={locale} />
+          </Suspense>
+          <div className="proto-cta" data-variant="D" data-home-content-slot>
+            <HomeArticleLink label={t("readArticles")} />
+            <Suspense fallback={null}>
+              <HomeContact label={t("contact")} />
+            </Suspense>
+          </div>
+        </div>
       </section>
 
       <Suspense fallback={null}>
@@ -170,13 +181,23 @@ export default async function HomePage({ params }: HomePageProps) {
           ))}
         </ul>
       </section>
+      <div className="bottom-veil" aria-hidden="true">
+        {[0.75, 1.5, 3, 6, 12, 24].map((blur, index) => (
+          <i key={blur} style={{
+            backdropFilter: `blur(${blur}px)`,
+            WebkitBackdropFilter: `blur(${blur}px)`,
+            maskImage: `linear-gradient(to bottom, transparent ${index / 6 * 100}%, #000 ${Math.min(100, (index + 1) / 6 * 100)}%, #000 ${Math.min(100, (index + 2) / 6 * 100)}%, ${index + 3 > 6 ? "#000" : "transparent"} ${Math.min(100, (index + 3) / 6 * 100)}%)`,
+          }} />
+        ))}
+      </div>
+      <PageScrollbar label={t("scrollPosition")} />
     </main>
   );
 }
 
 function HomeArticleLink({ label }: { label: string }) {
   return (
-    <Link className="home-hero__primary" href="/articles">
+    <Link className="proto-cta__primary home-hero__primary" href="/articles">
       {label}
       <ArrowUpRight aria-hidden="true" size={16} />
     </Link>
@@ -242,36 +263,33 @@ async function HomeFeaturedContent({ locale }: { locale: string }) {
   );
 }
 
-async function HomeHeroContent() {
+async function HomeIntroduction() {
   await connection();
-  const [t, siteSetting, articles] = await Promise.all([
-    getTranslations("Home"),
-    getSiteSetting(),
-    getFeaturedArticles(),
-  ]);
+  const setting = await getSiteSetting();
+  return setting?.heroIntroduction ? (
+    <p className="home-hero__introduction">{setting.heroIntroduction}</p>
+  ) : null;
+}
+
+async function HomeContact({ label }: { label: string }) {
+  await connection();
+  const setting = await getSiteSetting();
+  return setting?.contactUrl ? (
+    <a className="proto-cta__secondary home-hero__secondary" href={setting.contactUrl}>{label}</a>
+  ) : null;
+}
+
+async function HomeExplore({ locale }: { locale: string }) {
+  await connection();
+  const articles = await getFeaturedArticles();
+  if (articles.length === 0) return null;
+  const t = await getTranslations({ locale, namespace: "Home" });
 
   return (
-    <div className="home-hero__content" data-home-content-slot>
-      <p className="home-hero__slogan">STAY CURIOUS. KEEP BUILDING.</p>
-      {siteSetting?.heroIntroduction && (
-        <p className="home-hero__introduction">
-          {siteSetting.heroIntroduction}
-        </p>
-      )}
-      <div className="home-hero__actions">
-        <HomeArticleLink label={t("readArticles")} />
-        {siteSetting?.contactUrl && (
-          <a className="home-hero__secondary" href={siteSetting.contactUrl}>
-            {t("contact")}
-          </a>
-        )}
-      </div>
-      {articles.length > 0 && (
-        <p className="home-hero__explore" data-scroll-target="#featured-articles" aria-hidden="true">
-          <span className="home-hero__explore-label">{t("explore")}</span>
-          <span className="home-hero__explore-description">{t("exploreDescription")}</span>
-        </p>
-      )}
-    </div>
+    <p className="hero__explore home-hero__explore" aria-hidden="true">
+      <span className="home-hero__explore-label">{t("explore")}</span>
+      <ArrowDown aria-hidden="true" size={16} strokeWidth={1.75} />
+      <span className="home-hero__explore-description">{t("exploreDescription")}</span>
+    </p>
   );
 }
