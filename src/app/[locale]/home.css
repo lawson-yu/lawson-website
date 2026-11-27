@@ -119,15 +119,6 @@
   isolation: isolate;
 }
 
-.home-process::before {
-  position: absolute;
-  z-index: -1;
-  inset: -20px 4%;
-  background: rgb(20 23 27 / .9);
-  content: "";
-  pointer-events: none;
-}
-
 .home-process .home-section__heading { max-width: 760px; }
 .home-process__diagram { display: grid; gap: 12px; }
 
@@ -297,7 +288,6 @@
     min-height: 0;
     gap: 32px;
   }
-  .home-process::before { inset: -20px 0; }
   .home-process__chart { gap: 6px; }
   .home-process__chart li {
     height: 34px;

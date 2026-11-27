@@ -36,7 +36,7 @@
 .kin-site .work-services__chart-row--3 span { margin-left: 40%; width: 50%; }
 .kin-site .work-services__chart-row--4 span { margin-left: 80%; width: 20%; }
 .kin-site .work-services__timeline { display: flex; justify-content: space-between; gap: 12px; padding-top: 12px; color: #d6e0e8; font-size: 14px; }
-.kin-site .work-services__chart-note { margin: 12px 0 0; color: #d6e0e8; font-size: 14px; }
+.kin-site .work-services__chart-note { margin: 18px 0 0; color: #d6e0e8; font-size: 14px; }
 .kin-site .work-services__stages { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 28px; }
 .kin-site .work-services__stage-number { color: #d6e0e8; font-size: 14px; font-variant-numeric: tabular-nums; }
 .kin-site .work-services__stage h3 { margin: 12px 0 8px; font-size: clamp(21px, 2vw, 27px); font-weight: 400; line-height: 1.3; }
