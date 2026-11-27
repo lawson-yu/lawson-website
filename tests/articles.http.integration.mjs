@@ -162,7 +162,7 @@ test("双语文章与作品列表、详情只公开已发布内容，草稿、�
     assert.match(detail, /<h2 id="setext-heading">Setext Heading<\/h2>/);
     assert.match(detail, /article-reading__tags/);
     assert.match(detail, /AI/);
-    assert.match(detail, /article-reading__cover/);
+    assert.match(detail, /content-reading__cover/);
     assert.match(detail, /<time dateTime=/i);
     assert.match(detail, /文章摘要/);
     assert.match(detail, new RegExp(`<html[^>]*lang="${locale}"`));
@@ -182,7 +182,7 @@ test("双语文章与作品列表、详情只公开已发布内容，草稿、�
     assert.match(project, /<h2[^>]*>项目正文/);
     assert.match(project, /跨语言界面下的项目内容。/);
     assert.match(project, new RegExp(`<html[^>]*lang="${locale}"`));
-    assert.match(project, /class="project-detail__body" lang="zh"/);
+    assert.match(project, /<article[^>]*lang="zh"/);
   }
 
   for (const locale of ["zh", "en"]) {

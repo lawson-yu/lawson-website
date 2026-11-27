@@ -532,7 +532,7 @@ test("文章详情可读长文并从筛选结果恢复浏览状态", { timeout: 
     await page.keyboard.press("Enter");
     await page.waitForURL((url) => url.pathname.endsWith(`/articles/${articleId}`));
 
-    const returnUrl = new URL(await page.locator(".article-reading__back").getAttribute("href"), origin);
+    const returnUrl = new URL(await page.locator(".content-reading__back").getAttribute("href"), origin);
     assert.equal(returnUrl.pathname, "/zh/articles");
     assert.equal(returnUrl.searchParams.get("q"), "文章");
     assert.equal(returnUrl.searchParams.get("tag"), tagId);
@@ -568,23 +568,23 @@ test("文章详情可读长文并从筛选结果恢复浏览状态", { timeout: 
     );
 
     await page.goto(`${origin}/zh/articles/${longArticleId}`);
-    await page.locator(".article-reading__contents").waitFor({ state: "visible" });
-    assert.equal(await page.locator(".article-reading__contents a").count(), 3);
+    await page.locator(".content-reading__contents").waitFor({ state: "visible" });
+    assert.equal(await page.locator(".content-reading__contents a").count(), 3);
 
     const mobileContext = await browser.newContext({ viewport: { width: 390, height: 844 } });
     const mobilePage = await mobileContext.newPage();
     try {
       await mobilePage.goto(`${origin}/zh/articles/${longArticleId}`);
-      for (const selector of [".article-reading__back", ".article-reading__end a"]) {
+      for (const selector of [".content-reading__back", ".content-reading__end a"]) {
         const destination = new URL(await mobilePage.locator(selector).getAttribute("href"), origin);
         assert.equal(destination.pathname, "/zh/articles");
         assert.equal(destination.search, "");
       }
-      const mobileContents = mobilePage.locator(".article-reading__contents-mobile");
+      const mobileContents = mobilePage.locator(".content-reading__contents-mobile");
       assert.equal(await mobileContents.isVisible(), true);
       assert.equal(await mobileContents.getAttribute("open"), null);
       assert.equal(
-        await mobilePage.locator(".article-reading__opening h1").evaluate((element) => getComputedStyle(element).overflowWrap),
+        await mobilePage.locator(".content-reading__opening h1").evaluate((element) => getComputedStyle(element).overflowWrap),
         "anywhere",
       );
       const codeBlock = mobilePage.locator(".article-reading__body pre");
@@ -673,7 +673,7 @@ test("文章撤下后从阅读页返回列表结果顶部", { timeout: 45_000 },
 
     await submitArticle("withdraw");
     await page.evaluate(() => window.sessionStorage.clear());
-    await page.locator(".article-reading__back").click();
+    await page.locator(".content-reading__back").click();
     await page.waitForURL((url) => url.pathname === "/zh/articles" && url.searchParams.get("limit") === "12");
     await page.waitForFunction(() => [...document.querySelectorAll(".article-list-card__title")].filter((title) => title.checkVisibility()).length === 7);
     assert.equal(await page.getByRole("link", { name: "较早文章 C" }).count(), 0);
@@ -1514,7 +1514,7 @@ test("站内作品详情呈现 Markdown 和已配置的外部访问入口", asyn
   assert.equal(englishResponse.status, 200);
   assert.match(englishHtml, /<html[^>]*lang="en"/);
   assert.match(englishHtml, /Visit project/);
-  assert.match(englishHtml, /class="project-detail__body" lang="zh"/);
+  assert.match(englishHtml, /<article[^>]*lang="zh"/);
 });
 
 test("无效、草稿、撤下和外链作品的站内详情均返回 HTTP 404", async () => {
