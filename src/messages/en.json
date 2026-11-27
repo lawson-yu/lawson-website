@@ -11,7 +11,7 @@
     "signedIn": "Signed in",
     "signOut": "Sign out",
     "loginPromptLabel": "Optional sign-in notice",
-    "loginPrompt": "Google sign-in is optional. You can keep browsing anonymously.",
+    "loginPrompt": "Keep browsing anonymously.",
     "dismissLoginPrompt": "Dismiss sign-in notice",
     "googleUnavailable": "Google sign-in is temporarily unavailable. You can keep browsing anonymously."
   },

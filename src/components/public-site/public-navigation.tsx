@@ -2,11 +2,11 @@
 
 import { Menu, X } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
-import { Suspense } from "react";
+import { Suspense, type ReactNode } from "react";
 import { useEffect, useRef, useState } from "react";
 import { Link, usePathname, useRouter } from "@/i18n/navigation";
 import { routing } from "@/i18n/routing";
-import { PublicAuthentication } from "./public-authentication";
+import { usePublicAuthentication } from "./public-authentication";
 
 function LanguageSwitch({ beforeChange }: { beforeChange?: () => void }) {
   const locale = useLocale();
@@ -70,7 +70,7 @@ function NavigationLinks({ onNavigate }: { onNavigate?: () => void }) {
   );
 }
 
-function MenuDialog({ onDismiss }: { onDismiss: () => void }) {
+function MenuDialog({ onDismiss, account }: { onDismiss: () => void; account?: ReactNode }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
   const t = useTranslations("Navigation");
@@ -111,6 +111,7 @@ function MenuDialog({ onDismiss }: { onDismiss: () => void }) {
         <Suspense fallback={<LanguageSwitchFallback label={t("language")} />}>
           <LanguageSwitch beforeChange={dismiss} />
         </Suspense>
+        {account}
       </div>
     </dialog>
   );
@@ -118,6 +119,7 @@ function MenuDialog({ onDismiss }: { onDismiss: () => void }) {
 
 export function PublicNavigation() {
   const t = useTranslations("Navigation");
+  const account = usePublicAuthentication();
   const [menuOpen, setMenuOpen] = useState(false);
   const [visible, setVisible] = useState(true);
   const lastY = useRef(0);
@@ -163,7 +165,7 @@ export function PublicNavigation() {
         <Suspense fallback={<LanguageSwitchFallback label={t("language")} />}>
           <LanguageSwitch />
         </Suspense>
-        <PublicAuthentication />
+        {account.status}
         <button
           className="public-icon"
           type="button"
@@ -174,8 +176,9 @@ export function PublicNavigation() {
         >
           <Menu aria-hidden="true" size={20} />
         </button>
+        {!menuOpen && account.prompt}
       </header>
-      {menuOpen && <MenuDialog onDismiss={() => setMenuOpen(false)} />}
+      {menuOpen && <MenuDialog onDismiss={() => setMenuOpen(false)} account={account.menu} />}
     </>
   );
 }

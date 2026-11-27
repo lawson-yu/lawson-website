@@ -11,7 +11,7 @@
     "signedIn": "已登录",
     "signOut": "退出",
     "loginPromptLabel": "可选登录提示",
-    "loginPrompt": "Google 登录是可选的，你可以继续匿名浏览。",
+    "loginPrompt": "可继续匿名浏览。",
     "dismissLoginPrompt": "关闭登录提示",
     "googleUnavailable": "Google 登录暂时不可用，仍可继续匿名浏览。"
   },
