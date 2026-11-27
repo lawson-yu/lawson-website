@@ -1437,8 +1437,17 @@ test("桌面角色只在进入流程区后切换对应阶段姿态", { timeout: 
       document.querySelector(".home-process")?.removeAttribute("data-home-motion");
       window.dispatchEvent(new Event("scroll"));
     });
-    await page.waitForTimeout(1_000);
-    const heroPose = await readCanvasPixels(canvas);
+    // 软渲染下 bloom + 弹簧从 mouse.move(0, 0) 稳定需要额外帧，先等画布静止再测流程区边界。
+    let heroPose = await readCanvasPixels(canvas);
+    for (let attempt = 0; attempt < 8; attempt += 1) {
+      await page.waitForTimeout(500);
+      const settled = await readCanvasPixels(canvas);
+      if (countChangedPixels(heroPose, settled) < 4_000) {
+        heroPose = settled;
+        break;
+      }
+      heroPose = settled;
+    }
 
     await page.evaluate(() => {
       document.querySelector(".home-process")?.setAttribute("data-home-motion", "process");
