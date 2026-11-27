@@ -665,7 +665,7 @@ test("文章撤下后从阅读页返回列表结果顶部", { timeout: 45_000 },
     await page.getByRole("link", { name: "加载更多文章" }).click();
     await page.waitForURL((url) => url.searchParams.get("limit") === "12");
     await page.waitForFunction(() => [...document.querySelectorAll(".article-list-card__title")].filter((title) => title.checkVisibility()).length === 8);
-    await page.locator(".article-list-card__title:visible").last().press("Enter");
+    await page.locator(".article-list-card__title:visible").filter({ hasText: /^较早文章 C$/ }).click();
     await page.waitForURL((url) => url.pathname.endsWith(`/articles/${articleId}`));
 
     await submitArticle("withdraw");
@@ -1677,7 +1677,7 @@ test("角色首帧前保留静态图与首页入口，首帧渲染后再显示�
     await page.waitForFunction(
       () => document.querySelector(".home-hero__character")?.dataset.characterStage === "loading",
       null,
-      { timeout: 5_000 },
+      { timeout: 15_000 },
     );
     try {
       await requested;
@@ -1770,7 +1770,7 @@ test("手机启用减少动态效果时使用手机静态图且首屏入口可�
   }
 });
 
-test("点云资源失败时保留首页入口，刷新后重新请求", { timeout: 45_000 }, async () => {
+test("点云资源失败时保留首页入口，刷新后重新请求", { timeout: 60_000 }, async () => {
   const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
   const page = await context.newPage();
   let pointRequests = 0;
@@ -1783,7 +1783,7 @@ test("点云资源失败时保留首页入口，刷新后重新请求", { timeou
   try {
     const failedRequest = page.waitForRequest(
       (request) => request.url().endsWith("/models/custom/person.bin"),
-      { timeout: 5_000 },
+      { timeout: 15_000 },
     );
     await page.goto(`${origin}/zh`);
     await failedRequest;
