@@ -1383,8 +1383,12 @@ test("首页跨页回访后人物降级与星空阶段保持可见", { timeout: 
   } finally {
     await context.close();
     await prisma.article.deleteMany({ where: { id: articleId } });
+    // 直接删除测试数据后，重启服务以清除首页精选缓存。
+    await stopServer();
+    await startServer();
   }
 });
+
 test("首页没有精选文章时隐藏滚动提示", async () => {
   const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
   const page = await context.newPage();
