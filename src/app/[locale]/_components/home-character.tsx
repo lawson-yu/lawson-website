@@ -1,293 +1,275 @@
 "use client";
 
 import { Canvas, useFrame, useThree, type CanvasProps } from "@react-three/fiber";
-import { useCallback, useEffect, useRef, useState } from "react";
-import {
-  Mesh,
-  NoToneMapping,
-  PerspectiveCamera,
-  SRGBColorSpace,
-  Vector3,
-  WebGLRenderer,
-  type Camera,
-} from "three";
-import { APPEARANCE, renderQuality } from "@/components/kin/appearance";
-import { createGrainGeometry, FOV, fitCloud, prepareCustomCloud } from "@/components/kin/cloud-model";
+import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
+import { Group, Mesh, NoToneMapping, PerspectiveCamera, SRGBColorSpace, WebGLRenderer } from "three";
+import { APPEARANCE, renderQuality, type Appearance } from "@/components/kin/appearance";
+import { createGrainGeometry, flowField, FOV } from "@/components/kin/cloud-model";
+import { createBloom } from "@/components/kin/home-stage/bloom";
+import { disposeSurface, loadCloud } from "@/components/kin/home-stage/cloud-assets";
+import { createCursor } from "@/components/kin/home-stage/cursor";
+import { createTextRing } from "@/components/kin/home-stage/text-ring";
+import { createTimeline } from "@/components/kin/home-stage/timeline";
 import { createGrainMaterial } from "@/components/kin/particles";
+import "@/components/kin/home-stage/stage.css";
 
 const LOAD_TIMEOUT_MS = 8_000;
 type RendererFactory = Extract<NonNullable<CanvasProps["gl"]>, (...args: never[]) => unknown>;
 type RendererOptions = Parameters<RendererFactory>[0];
-type CloudMotionState = { x: number; y: number; yaw: number; pitch: number; scatter: number; dim: number; pointerX: number; pointerY: number; pointerOn: number };
 
-function updateCloudMotion(
-  points: Mesh,
-  material: ReturnType<typeof createGrainMaterial>["material"],
-  basePosition: Vector3,
-  fit: ReturnType<typeof fitCloud>,
-  viewport: { width: number; height: number },
-  target: CloudMotionState,
-  current: CloudMotionState,
-  delta: number,
-) {
-  let active = false;
-  const factor = 1 - Math.exp(-12 * Math.min(delta, 0.1));
-  const approach = (key: keyof CloudMotionState) => {
-    const difference = target[key] - current[key];
-    if (Math.abs(difference) < 0.0005) {
-      current[key] = target[key];
-      return false;
-    }
-    current[key] += difference * factor;
-    return true;
-  };
-  for (const key of ["x", "y", "yaw", "pitch", "scatter", "dim", "pointerX", "pointerY", "pointerOn"] as const) {
-    active = approach(key) || active;
-  }
+type Runtime = {
+  cursor: ReturnType<typeof createCursor>;
+  post: ReturnType<typeof createBloom> | null;
+  ring: ReturnType<typeof createTextRing>;
+  dispose(): void;
+};
 
-  points.position.set(
-    basePosition.x + current.x * viewport.width * fit.unitsPerPx * 0.5,
-    basePosition.y + current.y * viewport.height * fit.unitsPerPx * 0.5,
-    basePosition.z,
-  );
-  points.rotation.set(current.pitch + current.pointerY * 0.12, current.yaw + current.pointerX * 0.22, 0);
-  material.uniforms.uScatter.value = current.scatter;
-  material.uniforms.uDim.value = current.dim;
-  material.uniforms.uPointer.value.set(current.pointerX, current.pointerY);
-  material.uniforms.uDisturb.value = current.pointerOn;
-  return active;
+function readRenderQuality() {
+  const nav = navigator as Navigator & { deviceMemory?: number };
+  const cores = typeof nav.hardwareConcurrency === "number" ? nav.hardwareConcurrency : Number.POSITIVE_INFINITY;
+  const mobile = matchMedia("(max-width: 767px), (pointer: coarse)").matches;
+  return renderQuality(window.devicePixelRatio || 1, mobile, cores, nav.deviceMemory);
 }
 
-function configureRenderer(renderer: WebGLRenderer) {
-  renderer.setClearColor(0x000000, 0);
-  renderer.outputColorSpace = SRGBColorSpace;
-  renderer.toneMapping = NoToneMapping;
+function applyAppearance(cloud: Runtime, appearance: Appearance) {
+  cloud.cursor.appearance(appearance);
+  if (cloud.post) Object.assign(cloud.post.bloom, appearance.bloom);
 }
 
-function fitCamera(camera: Camera, model: ReturnType<typeof prepareCustomCloud>, width: number, height: number) {
-  if (!(camera instanceof PerspectiveCamera) || width === 0 || height === 0) return;
-  const fit = fitCloud(model, width, height);
-  camera.aspect = width / height;
-  camera.position.set(0, 0, fit.cameraZ);
-  camera.updateProjectionMatrix();
-}
-
-async function loadPointCloud(signal: AbortSignal) {
-  const [points, metadata] = await Promise.all([
-    fetch("/models/custom/person.bin", { signal }),
-    fetch("/models/custom/metadata.json", { signal }),
-  ]);
-  if (!points.ok) throw new Error(`Point cloud request failed: ${points.status}`);
-  if (!metadata.ok) throw new Error(`Point cloud metadata request failed: ${metadata.status}`);
-
-  const [binary, description] = await Promise.all([points.arrayBuffer(), metadata.json()]);
-  return prepareCustomCloud(binary, description);
-}
-
-function CloudScene({ onFirstFrame, onError }: { onFirstFrame(): void; onError(): void }) {
-  const { camera, get, gl, invalidate, scene, size } = useThree();
-  const pointsRef = useRef<Mesh | null>(null);
-  const materialRef = useRef<ReturnType<typeof createGrainMaterial> | null>(null);
-  const modelRef = useRef<ReturnType<typeof prepareCustomCloud> | null>(null);
-  const fitRef = useRef<ReturnType<typeof fitCloud> | null>(null);
-  const basePositionRef = useRef<Vector3 | null>(null);
-  const targetRef = useRef({ x: 0, y: 0, yaw: 0, pitch: 0, scatter: 0, dim: 0, pointerX: 0, pointerY: 0, pointerOn: 0 });
-  const currentRef = useRef({ x: 0, y: 0, yaw: 0, pitch: 0, scatter: 0, dim: 0, pointerX: 0, pointerY: 0, pointerOn: 0 });
+function CloudScene({
+  title,
+  onFirstFrame,
+  onError,
+}: {
+  title: RefObject<HTMLElement | null>;
+  onFirstFrame(): void;
+  onError(): void;
+}) {
+  const { gl, scene, camera, size, invalidate, setFrameloop, setDpr } = useThree();
+  const dpr = useThree((state) => state.viewport.dpr);
+  const runtime = useRef<Runtime | null>(null);
+  const current = useRef(size);
+  const timeline = useRef<ReturnType<typeof createTimeline> | null>(null);
+  const previousTime = useRef<number | null>(null);
   const drewFrame = useRef(false);
+  const lost = useRef(false);
+
+  const wake = useCallback(() => {
+    if (!document.hidden && !lost.current) invalidate();
+  }, [invalidate]);
+
+  const quality = useCallback(() => {
+    const profile = readRenderQuality();
+    setDpr(profile.dpr);
+    runtime.current?.cursor.setLiquidEnabled(profile.liquid && gl.extensions.has("EXT_color_buffer_float"));
+  }, [gl, setDpr]);
 
   useEffect(() => {
-    const controller = new AbortController();
+    current.current = size;
+    if (lost.current) return;
+    quality();
+    const cloud = runtime.current;
+    if (!cloud) return;
+    cloud.cursor.resize(size.width, size.height);
+    if (timeline.current) cloud.cursor.target(timeline.current.at(cloud.cursor.heroY), timeline.current.box);
+    cloud.post?.resize(size.width, size.height);
+    wake();
+  }, [size, dpr, quality, wake]);
+
+  useEffect(() => {
     let disposed = false;
-    let geometry: ReturnType<typeof createGrainGeometry> | null = null;
-    const root = gl.domElement.closest<HTMLElement>(".home-page");
-    const pointerMedia = matchMedia("(hover: hover) and (pointer: fine)");
+    let loading: AbortController | undefined;
+    const site = gl.domElement.closest<HTMLElement>(".kin-site, .home-page");
+    const release = () => {
+      runtime.current?.dispose();
+      runtime.current = null;
+      previousTime.current = null;
+      site?.classList.remove("has-cloud");
+    };
+    const choreography = site ? createTimeline(site, wake) : null;
+    timeline.current = choreography;
+    const fine = matchMedia("(hover: hover) and (pointer: fine)");
+    const motion = matchMedia("(prefers-reduced-motion: reduce)");
+    const eligible = () => fine.matches && !motion.matches;
 
-    const topOf = (name: string) => {
-      const section = root?.querySelector<HTMLElement>(`[data-home-motion="${name}"]`);
-      return section ? section.getBoundingClientRect().top + window.scrollY : null;
-    };
-    const ease = (value: number) => {
-      const t = Math.max(0, Math.min(1, value));
-      return t * t * (3 - 2 * t);
-    };
-    const updateScroll = () => {
-      const y = window.scrollY;
-      const vh = window.innerHeight;
-      const desktop = pointerMedia.matches;
-      const featuredTop = topOf("featured-articles");
-      const transitionTop = topOf("particle-transition");
-      const projectsTop = topOf("home-projects");
-      const processTop = topOf("process");
-      const hero = root?.querySelector<HTMLElement>(".home-hero");
-      const firstContentTop = featuredTop ?? (hero ? hero.getBoundingClientRect().bottom + y : 0);
-      const focus = ease((y - firstContentTop) / (vh * 0.8));
-      const recenter = transitionTop === null ? 0 : ease((y - (transitionTop - vh * 1.3)) / (vh * 0.3));
-      const transition = transitionTop === null ? 0 : ease((y - (transitionTop - vh * 0.2)) / vh);
-      const project = projectsTop === null ? 0 : ease((y - projectsTop) / (vh * 0.8));
-      const process = processTop === null ? 0 : ease((y - (processTop - vh * 0.4)) / (vh * 0.8));
-
-      let x = desktop ? 0.42 * focus * (1 - recenter) : 0;
-      let yaw = desktop ? -0.5 * focus * (1 - recenter) : 0;
-      let pitch = desktop ? 0.18 * focus * (1 - recenter) : 0;
-      if (projectsTop !== null && transitionTop !== null && project > 0) {
-        x = desktop ? 0.42 * project : 0;
-        yaw = desktop ? -0.35 * project : 0;
-        pitch = desktop ? 0.08 * project : 0;
-      }
-      if (processTop !== null && process > 0) {
-        x = desktop ? 0.42 + 0.18 * process : 0;
-        yaw = desktop ? -0.35 : 0;
-        pitch = desktop ? 0.08 : 0;
-      }
-
-      const gather = Math.max(project, process);
-      const scatter = transitionTop === null ? 0 : transition * (1 - gather);
-      const target = targetRef.current;
-      target.x = x;
-      target.y = desktop ? 0.12 * focus * (1 - recenter) : 0;
-      target.yaw = yaw;
-      target.pitch = pitch;
-      target.scatter = scatter;
-      target.dim = Math.min(0.4, transition * 0.25 + process * 0.3);
-      if (!desktop) {
-        target.pointerX = 0;
-        target.pointerY = 0;
-        target.pointerOn = 0;
-      }
-      invalidate();
-    };
-    let scrollFrame = 0;
-    const scheduleScroll = () => {
-      if (scrollFrame) return;
-      scrollFrame = requestAnimationFrame(() => {
-        scrollFrame = 0;
-        updateScroll();
-      });
-    };
-    const move = (event: PointerEvent) => {
-      if (!pointerMedia.matches || event.pointerType === "touch") return;
-      const model = modelRef.current;
-      const fit = fitRef.current;
-      if (!model || !fit) return;
-      const ndcX = (event.clientX / window.innerWidth) * 2 - 1;
-      const ndcY = 1 - (event.clientY / window.innerHeight) * 2;
-      const target = targetRef.current;
-      const inside = Math.abs(ndcX - target.x) <= model.size.x / (fit.view * (window.innerWidth / window.innerHeight)) &&
-        Math.abs(ndcY - target.y) <= model.size.y / fit.view;
-      if (!inside) {
-        leave();
-        return;
-      }
-      target.pointerX = ndcX;
-      target.pointerY = ndcY;
-      target.pointerOn = 1;
-      invalidate();
+    const preferences = () => {
+      quality();
+      runtime.current?.cursor.setReduced(motion.matches);
+      runtime.current?.cursor.setPointerEnabled(fine.matches);
+      previousTime.current = null;
+      wake();
     };
     const leave = () => {
-      const target = targetRef.current;
-      target.pointerX = 0;
-      target.pointerY = 0;
-      target.pointerOn = 0;
-      invalidate();
+      runtime.current?.cursor.leave();
+      wake();
     };
-    const pointerOut = (event: PointerEvent) => {
+    const move = (event: PointerEvent) => {
+      if (!eligible() || !choreography?.pointerEnabled || event.pointerType === "touch" || document.hidden || lost.current) return;
+      try {
+        runtime.current?.cursor.move(event.clientX, event.clientY, performance.now());
+      } catch {
+        runtime.current?.cursor.setLiquidEnabled(false);
+      }
+      wake();
+    };
+    const pointerout = (event: PointerEvent) => {
       if (!event.relatedTarget) leave();
     };
-    window.addEventListener("scroll", scheduleScroll, { passive: true });
-    window.addEventListener("resize", scheduleScroll);
-    window.addEventListener("pointermove", move, { passive: true });
-    window.addEventListener("pointerout", pointerOut);
-    window.addEventListener("blur", leave);
-    pointerMedia.addEventListener("change", scheduleScroll);
-    updateScroll();
+    const visibility = () => {
+      previousTime.current = null;
+      site?.classList.toggle("is-hidden", document.hidden);
+      if (document.hidden) runtime.current?.cursor.leave();
+      setFrameloop(document.hidden || lost.current ? "never" : "demand");
+      wake();
+    };
+
+    async function initialize() {
+      if (disposed || lost.current) return;
+      const request = new AbortController();
+      loading = request;
+      const disposers: (() => void)[] = [];
+      const disposeResources = () => {
+        for (const dispose of disposers.splice(0).reverse()) dispose();
+      };
+      try {
+        const model = await loadCloud(request.signal);
+        disposers.push(() => disposeSurface(model.surface));
+        if (disposed || request.signal.aborted) {
+          disposeResources();
+          return;
+        }
+
+        gl.setClearColor(0x000000, 0);
+        gl.outputColorSpace = SRGBColorSpace;
+        gl.toneMapping = NoToneMapping;
+
+        const hasFloatColorBuffer = gl.extensions.has("EXT_color_buffer_float");
+        const geometry = createGrainGeometry(model.positions);
+        disposers.push(() => geometry.dispose());
+        const grain = createGrainMaterial(APPEARANCE, hasFloatColorBuffer);
+        disposers.push(() => {
+          grain.material.dispose();
+          grain.zero.dispose();
+        });
+        const field = flowField(model);
+        grain.material.uniforms.uOrigin.value.copy(field.origin);
+        grain.material.uniforms.uSpan.value = field.span;
+        grain.material.uniforms.uRadius.value = Math.max(model.size.x, model.size.y) * 0.62;
+        grain.material.uniforms.uModelScale.value = model.unitScale;
+
+        const points = new Mesh(geometry, grain.material);
+        points.frustumCulled = false;
+        points.position.copy(model.pivot).negate();
+
+        const rig = new Group();
+        const ring = createTextRing(model);
+        disposers.push(() => ring.dispose());
+        rig.add(points, ring.group);
+        scene.add(rig);
+        disposers.push(() => scene.remove(rig));
+
+        const cursor = createCursor(gl, model, rig, points, grain, camera as PerspectiveCamera, title.current);
+        disposers.push(() => cursor.dispose());
+
+        let post: ReturnType<typeof createBloom> | null = null;
+        try {
+          post = createBloom(gl, scene, camera);
+          disposers.push(() => post?.dispose());
+        } catch {
+          post = null;
+        }
+
+        runtime.current = { cursor, post, ring, dispose: disposeResources };
+        applyAppearance(runtime.current, APPEARANCE);
+        quality();
+        cursor.setReduced(motion.matches);
+        cursor.setPointerEnabled(fine.matches);
+        const c = current.current;
+        cursor.resize(c.width, c.height);
+        if (choreography) cursor.target(choreography.at(cursor.heroY), choreography.box, true);
+        post?.resize(c.width, c.height);
+        site?.classList.add("has-cloud");
+        wake();
+      } catch {
+        disposeResources();
+        runtime.current = null;
+        site?.classList.remove("has-cloud");
+        if (!disposed && !request.signal.aborted) onError();
+      }
+    }
 
     const contextLost = (event: Event) => {
       event.preventDefault();
+      lost.current = true;
+      loading?.abort();
+      setFrameloop("never");
+      release();
       onError();
     };
-    gl.domElement.addEventListener("webglcontextlost", contextLost);
 
-    async function initialize() {
-      try {
-        const model = await loadPointCloud(controller.signal);
-        if (disposed) return;
+    const canvas = gl.domElement;
+    canvas.addEventListener("webglcontextlost", contextLost);
+    queueMicrotask(() => {
+      void initialize();
+    });
+    document.addEventListener("visibilitychange", visibility);
+    window.addEventListener("pointermove", move, { passive: true });
+    window.addEventListener("blur", leave);
+    window.addEventListener("pointercancel", leave);
+    document.documentElement.addEventListener("pointerleave", leave);
+    window.addEventListener("pointerout", pointerout);
+    fine.addEventListener("change", preferences);
+    motion.addEventListener("change", preferences);
+    visibility();
 
-        configureRenderer(gl);
-
-        geometry = createGrainGeometry(model.positions);
-        const hasFloatColorBuffer = gl.extensions.has("EXT_color_buffer_float");
-        const grain = createGrainMaterial(APPEARANCE, hasFloatColorBuffer);
-        const points = new Mesh(geometry, grain.material);
-        const center = model.box.getCenter(new Vector3());
-        points.frustumCulled = false;
-        points.position.copy(center).negate();
-        basePositionRef.current = points.position.clone();
-        grain.material.uniforms.uCenter.value.set(center.x, center.y);
-        grain.material.uniforms.uRadius.value = Math.max(model.size.x, model.size.y) / 2;
-        modelRef.current = model;
-        const viewport = get().size;
-        fitRef.current = fitCloud(model, viewport.width, viewport.height);
-        currentRef.current.scatter = 1;
-        pointsRef.current = points;
-        materialRef.current = grain;
-
-        fitCamera(get().camera, model, viewport.width, viewport.height);
-        grain.material.uniforms.uViewport.value.set(viewport.width, viewport.height);
-        scene.add(points);
-        invalidate();
-      } catch {
-        if (!disposed && !controller.signal.aborted) onError();
-      }
-    }
-
-    void initialize();
     return () => {
       disposed = true;
-      controller.abort();
-      cancelAnimationFrame(scrollFrame);
-      window.removeEventListener("scroll", scheduleScroll);
-      window.removeEventListener("resize", scheduleScroll);
+      loading?.abort();
+      release();
+      choreography?.dispose();
+      timeline.current = null;
+      site?.classList.remove("is-hidden");
+      canvas.removeEventListener("webglcontextlost", contextLost);
+      document.removeEventListener("visibilitychange", visibility);
       window.removeEventListener("pointermove", move);
-      window.removeEventListener("pointerout", pointerOut);
       window.removeEventListener("blur", leave);
-      pointerMedia.removeEventListener("change", scheduleScroll);
-      gl.domElement.removeEventListener("webglcontextlost", contextLost);
-      if (pointsRef.current) scene.remove(pointsRef.current);
-      pointsRef.current = null;
-      modelRef.current = null;
-      fitRef.current = null;
-      geometry?.dispose();
-      materialRef.current?.material.dispose();
-      materialRef.current?.zero.dispose();
-      materialRef.current = null;
+      window.removeEventListener("pointercancel", leave);
+      document.documentElement.removeEventListener("pointerleave", leave);
+      window.removeEventListener("pointerout", pointerout);
+      fine.removeEventListener("change", preferences);
+      motion.removeEventListener("change", preferences);
     };
-  }, [get, gl, invalidate, onError, scene]);
+  }, [camera, gl, onError, quality, scene, setFrameloop, title, wake]);
 
-  useEffect(() => {
-    const model = modelRef.current;
-    if (!model || size.width === 0 || size.height === 0) return;
-
-    fitRef.current = fitCloud(model, size.width, size.height);
-    fitCamera(camera, model, size.width, size.height);
-    materialRef.current?.material.uniforms.uViewport.value.set(size.width, size.height);
-    invalidate();
-  }, [camera, invalidate, size]);
-
-  useFrame((_, delta) => {
-    if (!pointsRef.current) return;
-
+  useFrame(() => {
+    if (document.hidden || lost.current) return;
+    const cloud = runtime.current;
+    if (!cloud) return;
+    if (timeline.current && !timeline.current.visible) {
+      gl.setRenderTarget(null);
+      gl.clear();
+      previousTime.current = null;
+      return;
+    }
     try {
-      const points = pointsRef.current;
-      const material = materialRef.current?.material;
-      const basePosition = basePositionRef.current;
-      const fit = fitRef.current;
-      if (!material || !basePosition || !fit) return;
-      const active = updateCloudMotion(points, material, basePosition, fit, size, targetRef.current, currentRef.current, delta);
-      gl.render(scene, camera);
+      const now = performance.now();
+      const dt = Math.min(0.25, previousTime.current === null ? 1 / 60 : (now - previousTime.current) / 1000);
+      let active = timeline.current?.step() ?? false;
+      if (!timeline.current?.pointerEnabled) cloud.cursor.leave();
+      if (timeline.current) cloud.cursor.target(timeline.current.at(cloud.cursor.heroY), timeline.current.box);
+      active = cloud.cursor.step(dt, now) || active;
+      cloud.ring.group.visible = timeline.current?.ringVisible ?? false;
+      if (cloud.ring.group.visible && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
+        cloud.ring.step(dt);
+        active = true;
+      }
+      if (cloud.post) cloud.post.composer.render(dt);
+      else gl.render(scene, camera);
       if (!drewFrame.current) {
         drewFrame.current = true;
         onFirstFrame();
       }
+      previousTime.current = active ? now : null;
       if (active) invalidate();
     } catch {
       onError();
@@ -297,14 +279,8 @@ function CloudScene({ onFirstFrame, onError }: { onFirstFrame(): void; onError()
   return null;
 }
 
-function readRenderQuality() {
-  const nav = navigator as Navigator & { deviceMemory?: number };
-  const cores = typeof nav.hardwareConcurrency === "number" ? nav.hardwareConcurrency : Number.POSITIVE_INFINITY;
-  const mobile = matchMedia("(max-width: 767px), (pointer: coarse)").matches;
-  return renderQuality(window.devicePixelRatio || 1, mobile, cores, nav.deviceMemory);
-}
-
 export function HomeCharacter({ alt }: { alt: string }) {
+  const titleRef = useRef<HTMLSpanElement>(null);
   const [reducedMotion, setReducedMotion] = useState(false);
   const [attempting, setAttempting] = useState(false);
   const [rendered, setRendered] = useState(false);
@@ -316,7 +292,7 @@ export function HomeCharacter({ alt }: { alt: string }) {
   const stage = reducedMotion || failed ? "static-fallback" : attempting ? rendered ? "rendered" : "loading" : "static-fallback";
 
   useEffect(() => {
-    const root = document.querySelector<HTMLElement>(".home-page");
+    const root = document.querySelector<HTMLElement>(".kin-site, .home-page");
     if (!root) return;
     let frame = 0;
     const update = () => {
@@ -399,37 +375,49 @@ export function HomeCharacter({ alt }: { alt: string }) {
     };
   }, [fail]);
 
-  const createRenderer = useCallback((props: RendererOptions) => {
-    try {
-      return new WebGLRenderer({ ...props, canvas: props.canvas as HTMLCanvasElement, alpha: true, antialias: false });
-    } catch (error) {
-      fail();
-      throw error;
-    }
-  }, [fail]);
+  const createRenderer = useCallback(
+    (props: RendererOptions) => {
+      try {
+        return new WebGLRenderer({ ...props, canvas: props.canvas as HTMLCanvasElement, alpha: true, antialias: false });
+      } catch (error) {
+        fail();
+        throw error;
+      }
+    },
+    [fail],
+  );
 
   return (
-    <div className="home-hero__character" data-character-stage={stage}>
+    <div className="home-hero__character stage" data-character-stage={stage}>
       <picture>
         <source media="(max-width: 767px)" srcSet="/images/character/static-mobile.webp" />
         <img src="/images/character/static-desktop.webp" alt={alt} fetchPriority="high" />
       </picture>
+      <span ref={titleRef} className="hero__title" aria-hidden="true">
+        <span className="hero__letters">
+          {Array.from("LAWSON", (letter, index) => (
+            <span className="hero__letter-mask" key={`${letter}-${index}`}>
+              <span className="hero__letter" style={{ animationDelay: `${index * 55}ms` }}>
+                {letter}
+              </span>
+            </span>
+          ))}
+        </span>
+      </span>
       {attempting && !failed && !reducedMotion && (
         <Canvas
           aria-hidden="true"
-          className="home-character__canvas"
+          className="home-character__canvas kin-canvas"
           camera={{ fov: FOV, near: 0.01, far: 40, position: [0, 0, 1] }}
           dpr={dpr}
           fallback={null}
           frameloop="demand"
           gl={createRenderer}
+          resize={{ offsetSize: true }}
         >
-          <CloudScene onFirstFrame={firstFrame} onError={fail} />
+          <CloudScene title={titleRef} onFirstFrame={firstFrame} onError={fail} />
         </Canvas>
       )}
-      <span className="home-hero__wordmark" aria-hidden="true">
-        LAWSON
-      </span>
     </div>
   );
 }

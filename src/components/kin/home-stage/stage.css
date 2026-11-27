@@ -1,0 +1,194 @@
+.kin-site .stage {
+  z-index: 1;
+  overflow: clip;
+  transform-origin: 50% 50%;
+}
+
+.kin-site .kin-canvas {
+  position: absolute !important;
+  inset: 0;
+  z-index: 1;
+  opacity: var(--cloud-opacity, 1);
+}
+
+.kin-site.has-cloud .kin-canvas {
+  animation: kin-figure-rise 800ms var(--ease-expo) 0.16s backwards;
+}
+
+.kin-site.has-cloud .kin-canvas canvas {
+  filter: none;
+}
+
+.kin-site .hero__title {
+  position: absolute;
+  z-index: 2;
+  left: 0;
+  right: 0;
+  margin: 0;
+  top: calc(var(--bust-top, calc(107% - min(78%, 98.4vw))) + 40px - var(--d-1-rise));
+  translate: 0 -50%;
+  font-family: var(--font-wordmark);
+  font-size: var(--d-1);
+  font-weight: 400;
+  line-height: var(--lh-d1);
+  letter-spacing: -0.04em;
+  text-transform: uppercase;
+  text-align: center;
+  white-space: nowrap;
+  color: rgb(252 252 252 / 0.9);
+  pointer-events: none;
+}
+
+.kin-site.has-cloud .hero__title {
+  z-index: 0;
+  -webkit-mask-image: radial-gradient(
+    var(--hrx, 24vh) var(--hry, 30vh) at var(--hx, 50%) var(--hy, 130%),
+    transparent 0%,
+    transparent 56%,
+    rgb(0 0 0 / 0.015) 64%,
+    rgb(0 0 0 / 0.05) 72%,
+    rgb(0 0 0 / 0.12) 80%,
+    rgb(0 0 0 / 0.23) 88%,
+    rgb(0 0 0 / 0.4) 98%,
+    rgb(0 0 0 / 0.62) 108%,
+    rgb(0 0 0 / 0.84) 118%,
+    #000 130%
+  );
+  mask-image: radial-gradient(
+    var(--hrx, 24vh) var(--hry, 30vh) at var(--hx, 50%) var(--hy, 130%),
+    transparent 0%,
+    transparent 56%,
+    rgb(0 0 0 / 0.015) 64%,
+    rgb(0 0 0 / 0.05) 72%,
+    rgb(0 0 0 / 0.12) 80%,
+    rgb(0 0 0 / 0.23) 88%,
+    rgb(0 0 0 / 0.4) 98%,
+    rgb(0 0 0 / 0.62) 108%,
+    rgb(0 0 0 / 0.84) 118%,
+    #000 130%
+  );
+}
+
+.kin-site .hero__letters {
+  display: inline-flex;
+}
+
+.kin-site .hero__letter-mask {
+  display: inline-block;
+  overflow: clip;
+}
+
+.kin-site .hero__letter {
+  display: inline-block;
+}
+
+.kin-site.has-timeline :is(.stage .hero__title, .hero__right, .hero__left, .hero__explore, .proto-cta) {
+  opacity: var(--hero-alpha, 1);
+  visibility: var(--hero-visibility, visible);
+  transform: scale(var(--hero-scale, 1));
+}
+
+.kin-site .particle-transition__copy {
+  transition: opacity 600ms cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+.kin-site .particle-transition h2 > span {
+  transition:
+    transform 350ms cubic-bezier(0.25, 1, 0.5, 1),
+    opacity 350ms cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+.kin-site .particle-transition h2 > span:nth-child(1) {
+  transform: translate3d(0, calc(var(--idea-out-y, 0%) * -1), 0);
+  opacity: var(--idea-out-opacity, 1);
+}
+
+.kin-site .particle-transition h2 > span:nth-child(2) {
+  transform: translate3d(0, var(--idea-out-y, 0%), 0);
+  opacity: var(--idea-out-opacity, 1);
+}
+
+.kin-site .particle-transition__copy p {
+  transform: translate3d(0, var(--idea-sub-y, 0px), 0);
+  opacity: var(--idea-out-opacity, 1);
+  transition:
+    transform 300ms cubic-bezier(0.25, 1, 0.5, 1),
+    opacity 300ms cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+.kin-site.is-hidden :is(.kin-canvas, .hero__title, .hero__letter) {
+  animation-play-state: paused;
+}
+
+@keyframes kin-figure-rise {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes kin-letter-in {
+  from {
+    opacity: 0;
+    transform: translateY(110%);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (min-width: 768px) and (prefers-reduced-motion: no-preference) {
+  .kin-site:not(.has-entered) .hero__title {
+    animation: kin-copy-in 600ms var(--ease-expo) both;
+  }
+
+  .kin-site:not(.has-entered) .hero__letter {
+    animation: kin-letter-in 620ms var(--ease-expo) backwards;
+  }
+}
+
+@media (max-width: 767px) {
+  .kin-site .hero__title {
+    top: 26%;
+  }
+
+  .kin-site:not(.has-entered) :is(.hero__title, .hero__letter) {
+    animation: none;
+  }
+
+  .kin-site .stage::after {
+    content: "";
+    position: absolute;
+    z-index: 2;
+    inset: 0;
+    background: rgb(9 12 16 / 0.8);
+    opacity: var(--content-veil, 0);
+    pointer-events: none;
+  }
+
+  .kin-site .kin-canvas {
+    opacity: calc(var(--cloud-opacity, 1) * (1 - var(--screen-dim, 0) * 0.75));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kin-site .stage {
+    animation: none !important;
+    transition: none !important;
+  }
+
+  .kin-site .kin-canvas,
+  .kin-site .hero__title,
+  .kin-site .hero__letter,
+  .kin-site .particle-transition__copy,
+  .kin-site .particle-transition h2 > span,
+  .kin-site .particle-transition__copy p {
+    animation: none !important;
+    transition: none !important;
+  }
+}
