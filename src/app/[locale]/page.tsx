@@ -1,3 +1,4 @@
+import Image from "next/image";
 import { connection } from "next/server";
 import type { Metadata } from "next";
 import { ArrowUpRight } from "lucide-react";
@@ -64,18 +65,26 @@ const services = [
   {
     title: "UI 与交互设计",
     description: "理清用户路径，把想法变成清晰、自然的体验。",
+    image: "design.jpg",
+    alt: "明亮工作室中的空间与线条，呼应设计中的秩序与留白",
   },
   {
     title: "前端网站开发",
     description: "还原设计细节，让网站在每种屏幕上流畅呈现。",
+    image: "frontend.jpg",
+    alt: "桌面上的笔记本电脑与开发工作环境",
   },
   {
     title: "全栈产品开发",
     description: "连接界面、业务与数据，交付完整可用的产品。",
+    image: "fullstack.jpg",
+    alt: "排列整齐的服务器与连接设备",
   },
   {
     title: "AI Agent 开发",
     description: "围绕实际任务连接工具，让重复工作自动运转。",
+    image: "agent.jpg",
+    alt: "电路板上的芯片与连接线路",
   },
 ];
 
@@ -112,6 +121,16 @@ export default async function HomePage({ params }: HomePageProps) {
           <h2 id="process-title">{t("processTitle")}</h2>
           <p>{t("processDescription")}</p>
         </div>
+        <div className="home-process__diagram" aria-hidden="true">
+          <ol className="home-process__chart">
+            {workflow.map((item) => (
+              <li key={item.step}><span>{item.title}</span></li>
+            ))}
+          </ol>
+          <div className="home-process__chart-timeline">
+            <span>项目开始</span><span>方向确认</span><span>设计与实现</span><span>发布之后</span>
+          </div>
+        </div>
         <ol className="home-process__list">
           {workflow.map((item) => (
             <li key={item.step}>
@@ -134,8 +153,19 @@ export default async function HomePage({ params }: HomePageProps) {
         <ul className="home-services__list">
           {services.map((service) => (
             <li key={service.title}>
-              <h3>{service.title}</h3>
-              <p>{service.description}</p>
+              <div className="home-services__visual">
+                <Image
+                  src={`/images/services/${service.image}`}
+                  alt={service.alt}
+                  fill
+                  sizes="(max-width: 767px) calc(100vw - 40px), 24vw"
+                />
+                <span aria-hidden="true">{service.title}</span>
+              </div>
+              <div className="home-services__copy">
+                <h3>{service.title}</h3>
+                <p>{service.description}</p>
+              </div>
             </li>
           ))}
         </ul>
@@ -239,7 +269,6 @@ async function HomeHeroContent() {
       {articles.length > 0 && (
         <p className="home-hero__explore" data-scroll-target="#featured-articles" aria-hidden="true">
           <span className="home-hero__explore-label">{t("explore")}</span>
-          <span className="home-hero__explore-description">{t("exploreDescription")}</span>
         </p>
       )}
     </div>
