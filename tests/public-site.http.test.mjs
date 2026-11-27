@@ -444,10 +444,11 @@ test("文章列表按发布时间和 ID 排序，并可手动增量加载", { ti
 
   try {
     await page.goto(`${origin}/zh/articles`, { waitUntil: "networkidle" });
-    const cards = page.locator(".articles-index__grid > li");
-    await page.waitForFunction(() => document.querySelectorAll(".articles-index__grid > li").length > 0);
-    assert.equal(await cards.count(), 6);
-    assert.deepEqual(await page.locator(".article-card__title").allTextContents(), [
+    const cards = page.locator(".articles-index__grid > li:visible");
+    await cards.first().waitFor({ state: "visible" });
+    assert.equal(await cards.count(), 5);
+    assert.equal(await page.locator(".articles-index__featured .article-list-card__title:visible").innerText(), "AI 技术文章");
+    assert.deepEqual(await page.locator(".article-list-card__title:visible").allTextContents(), [
       "AI 技术文章",
       "未筛选的写作文章",
       "较新的文章",
@@ -457,8 +458,9 @@ test("文章列表按发布时间和 ID 排序，并可手动增量加载", { ti
     ]);
 
     await page.getByRole("link", { name: "加载更多文章" }).click();
-    await page.waitForFunction(() => document.querySelectorAll(".articles-index__grid > li").length === 8);
-    assert.deepEqual((await page.locator(".article-card__title").allTextContents()).slice(-2), [
+    await page.waitForFunction(() => [...document.querySelectorAll(".articles-index__grid > li")]
+      .filter((card) => card.checkVisibility()).length === 7);
+    assert.deepEqual((await page.locator(".article-list-card__title:visible").allTextContents()).slice(-2), [
       "较早文章 B",
       "较早文章 C",
     ]);
@@ -521,12 +523,12 @@ test("文章详情可读长文并从筛选结果恢复浏览状态", { timeout: 
 
   try {
     await page.goto(`${origin}/zh/articles?q=${encodeURIComponent("文章")}&tag=${tagId}`);
-    await page.waitForFunction(() => document.querySelectorAll(".article-card__title").length === 6);
+    await page.waitForFunction(() => [...document.querySelectorAll(".article-list-card__title")].filter((title) => title.checkVisibility()).length === 6);
     await page.getByRole("link", { name: "加载更多文章" }).click();
     await page.waitForURL((url) => url.searchParams.get("limit") === "12");
-    await page.waitForFunction(() => document.querySelectorAll(".article-card__title").length === 8);
+    await page.waitForFunction(() => [...document.querySelectorAll(".article-list-card__title")].filter((title) => title.checkVisibility()).length === 8);
 
-    await page.locator(".article-card__title").last().focus();
+    await page.locator(".article-list-card__title:visible").last().focus();
     await page.keyboard.press("Enter");
     await page.waitForURL((url) => url.pathname.endsWith(`/articles/${articleId}`));
 
@@ -553,9 +555,9 @@ test("文章详情可读长文并从筛选结果恢复浏览状态", { timeout: 
       (title) => document.activeElement?.textContent === title,
       "较早文章 C",
     );
-    assert.equal(await page.locator(".article-card__title").count(), 8);
+    assert.equal(await page.locator(".article-list-card__title:visible").count(), 8);
 
-    await page.locator(".article-card__title").last().focus();
+    await page.locator(".article-list-card__title:visible").last().focus();
     await page.keyboard.press("Enter");
     await page.waitForURL((url) => url.pathname.endsWith(`/articles/${articleId}`));
     await page.getByRole("link", { name: "返回文章列表", exact: true }).click();
@@ -661,11 +663,11 @@ test("文章撤下后从阅读页返回列表结果顶部", { timeout: 45_000 },
 
   try {
     await page.goto(`${origin}/zh/articles?q=${encodeURIComponent("文章")}`);
-    await page.waitForFunction(() => document.querySelectorAll(".article-card__title").length === 6);
+    await page.waitForFunction(() => [...document.querySelectorAll(".article-list-card__title")].filter((title) => title.checkVisibility()).length === 6);
     await page.getByRole("link", { name: "加载更多文章" }).click();
     await page.waitForURL((url) => url.searchParams.get("limit") === "12");
-    await page.waitForFunction(() => document.querySelectorAll(".article-card__title").length === 8);
-    await page.locator(".article-card__title").last().focus();
+    await page.waitForFunction(() => [...document.querySelectorAll(".article-list-card__title")].filter((title) => title.checkVisibility()).length === 8);
+    await page.locator(".article-list-card__title:visible").last().focus();
     await page.keyboard.press("Enter");
     await page.waitForURL((url) => url.pathname.endsWith(`/articles/${articleId}`));
 
@@ -673,7 +675,7 @@ test("文章撤下后从阅读页返回列表结果顶部", { timeout: 45_000 },
     await page.evaluate(() => window.sessionStorage.clear());
     await page.locator(".article-reading__back").click();
     await page.waitForURL((url) => url.pathname === "/zh/articles" && url.searchParams.get("limit") === "12");
-    await page.waitForFunction(() => document.querySelectorAll(".article-card__title").length === 7);
+    await page.waitForFunction(() => [...document.querySelectorAll(".article-list-card__title")].filter((title) => title.checkVisibility()).length === 7);
     assert.equal(await page.getByRole("link", { name: "较早文章 C" }).count(), 0);
     await page.waitForFunction(() => {
       const grid = document.querySelector(".articles-index__grid");
@@ -699,13 +701,15 @@ test("滚动到文章列表末尾时自动加载下一批", { timeout: 20_000 },
 
   try {
     await page.goto(`${origin}/zh/articles`);
-    const cards = page.locator(".articles-index__grid > li");
-    await page.waitForFunction(() => document.querySelectorAll(".articles-index__grid > li").length === 6);
+    const cards = page.locator(".articles-index__grid > li:visible");
+    await cards.first().waitFor({ state: "visible" });
+    assert.equal(await cards.count(), 5);
     const loadMore = page.getByRole("link", { name: "加载更多文章" });
     await loadMore.waitFor({ state: "visible" });
-    await page.evaluate(() => window.scrollTo({ top: document.documentElement.scrollHeight, behavior: "instant" }));
-    await page.waitForFunction(() => document.querySelectorAll(".articles-index__grid > li").length === 8, null, { timeout: 8_000 });
-    assert.equal(await cards.count(), 8);
+    await loadMore.scrollIntoViewIfNeeded();
+    await page.waitForFunction(() => [...document.querySelectorAll(".articles-index__grid > li")]
+      .filter((card) => card.checkVisibility()).length === 7, null, { timeout: 8_000 });
+    assert.equal(await cards.count(), 7);
   } finally {
     await context.close();
   }
