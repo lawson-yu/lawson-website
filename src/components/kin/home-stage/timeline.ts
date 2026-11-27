@@ -28,7 +28,7 @@ export function createTimeline(site: HTMLElement, wake: () => void) {
 
     site.style.setProperty("--hero-veil", String(1 - progress));
     site.style.setProperty("--transition-veil", String(1 - scatter));
-    site.style.setProperty("--content-veil", String(clamp((y - (layout.transition - 1.5 * layout.vh)) / (1.5 * layout.vh))));
+    site.style.setProperty("--content-veil", String(clamp((y - layout.transition) / Math.max(1, layout.projects - layout.transition))));
 
     const exitY = layout.footer === undefined ? 0 : Math.min(0, layout.footer - y - layout.vh);
     box.ty = exitY;

@@ -1,7 +1,33 @@
 "use client";
 
-import { ReactLenis } from "lenis/react";
-import { useEffect, useState, type ReactNode } from "react";
+import { ReactLenis, useLenis } from "lenis/react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { usePathname } from "@/i18n/navigation";
+
+const ARTICLE_RETURN_FOCUS_KEY = "lawson:article-return-slug";
+
+function ScrollToTopOnNavigate() {
+  const pathname = usePathname();
+  const lenis = useLenis();
+  const previousPathname = useRef(pathname);
+
+  useEffect(() => {
+    if (previousPathname.current === pathname) return;
+    previousPathname.current = pathname;
+
+    if (window.location.hash) return;
+    try {
+      if (window.sessionStorage.getItem(ARTICLE_RETURN_FOCUS_KEY)) return;
+    } catch {
+      // sessionStorage 不可用时照常回到顶部。
+    }
+
+    if (lenis) lenis.scrollTo(0, { immediate: true, force: true });
+    window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+  }, [pathname, lenis]);
+
+  return null;
+}
 
 export function DesktopSmoothScroll({ children }: { children: ReactNode }) {
   const [enabled, setEnabled] = useState(false);
@@ -20,10 +46,18 @@ export function DesktopSmoothScroll({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  if (!enabled) return children;
+  if (!enabled) {
+    return (
+      <>
+        <ScrollToTopOnNavigate />
+        {children}
+      </>
+    );
+  }
 
   return (
     <ReactLenis root options={{ lerp: 0.1, smoothWheel: true }}>
+      <ScrollToTopOnNavigate />
       {children}
     </ReactLenis>
   );
