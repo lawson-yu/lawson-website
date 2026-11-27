@@ -46,14 +46,14 @@ function isHttpsUrl(value: string) {
   }
 }
 
-function isContactUrl(value: string) {
-  const address = value.trim();
+function normalizeContactUrl(address: string) {
   if (address.toLowerCase().startsWith("mailto:")) {
     const recipient = address.slice("mailto:".length).split("?")[0];
-    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipient);
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipient) ? address : null;
   }
 
-  return isHttpsUrl(address);
+  if (isHttpsUrl(address)) return address;
+  return /^[^\s@:/?#]+@[^\s@:/?#]+\.[^\s@:/?#]+$/.test(address) ? `mailto:${address}` : null;
 }
 
 export function validateSiteSettings(
@@ -61,7 +61,9 @@ export function validateSiteSettings(
 ): SiteSettingsValidation {
   const errors: { contactUrl?: string; socialLinks?: string } = {};
 
-  if (draft.contactUrl.trim() && !isContactUrl(draft.contactUrl)) {
+  const address = draft.contactUrl.trim();
+  const contactUrl = normalizeContactUrl(address);
+  if (address && !contactUrl) {
     errors.contactUrl = "contactUrlInvalid";
   }
 
@@ -84,7 +86,7 @@ export function validateSiteSettings(
       heroIntroduction: draft.heroIntroduction.trim()
         ? draft.heroIntroduction
         : null,
-      contactUrl: draft.contactUrl.trim() ? draft.contactUrl.trim() : null,
+      contactUrl,
       socialLinks: draft.socialLinks.map((link) => ({
         name: link.name,
         url: link.url.trim(),

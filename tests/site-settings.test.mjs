@@ -22,10 +22,14 @@ test("站点联系入口接受 mailto 与 HTTPS，并保留介绍原文", () => 
     contactUrl: "https://example.com/contact",
   });
   assert.equal(httpsResult.ok, true);
+
+  const emailResult = validateSiteSettings({ ...validSettings, contactUrl: "  hello@example.com  " });
+  assert.equal(emailResult.ok, true);
+  assert.equal(emailResult.value.contactUrl, "mailto:hello@example.com");
 });
 
 test("站点联系入口拒绝 HTTP 和非邮件的 mailto 地址", () => {
-  for (const contactUrl of ["http://example.com", "mailto:not-an-email"]) {
+  for (const contactUrl of ["http://example.com", "http://user@example.com", "mailto:not-an-email", "hello@example"]) {
     const result = validateSiteSettings({ ...validSettings, contactUrl });
     assert.equal(result.ok, false);
     assert.equal(result.errors.contactUrl, "contactUrlInvalid");

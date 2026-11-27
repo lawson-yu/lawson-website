@@ -522,8 +522,12 @@
   line-height: 1.6;
 }
 
+.admin-settings-form input[aria-invalid="true"] {
+  border-color: #ffb4a9;
+}
+
 .admin-settings-form__message[data-status="error"],
-.admin-settings-form__error {
+.admin-settings-form .admin-settings-form__error {
   color: #ffb4a9;
   font-size: .82rem;
 }

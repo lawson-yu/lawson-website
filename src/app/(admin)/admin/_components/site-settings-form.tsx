@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { ArrowDown, ArrowUp, Plus, Trash2 } from "lucide-react";
 import { AdminIntlProvider } from "@/components/admin/admin-intl-provider";
@@ -52,6 +52,19 @@ function SiteSettingsFormContent({ initialValues }: SiteSettingsFormProps) {
       id: `initial-${index}`,
     })),
   );
+
+  const contactInput = useRef<HTMLInputElement>(null);
+  const socialLinksError = useRef<HTMLParagraphElement>(null);
+
+  useEffect(() => {
+    if (state.errors?.contactUrl) contactInput.current?.focus();
+    else if (state.errors?.socialLinks) socialLinksError.current?.focus();
+  }, [state]);
+
+  const invalidFields = [
+    state.errors?.contactUrl ? t("contactLinkLabel") : null,
+    state.errors?.socialLinks ? t("socialLinksLabel") : null,
+  ].filter(Boolean);
 
   const missingFields = [
     !heroIntroduction.trim() ? t("homeIntroductionLabel") : null,
@@ -111,6 +124,7 @@ function SiteSettingsFormContent({ initialValues }: SiteSettingsFormProps) {
         <label className="admin-settings-form__field" htmlFor="contact-url">
           {t("contactLinkLabel")}
           <input
+            ref={contactInput}
             id="contact-url"
             name="contactUrl"
             type="text"
@@ -219,7 +233,7 @@ function SiteSettingsFormContent({ initialValues }: SiteSettingsFormProps) {
             </div>
           ))}
           {state.errors?.socialLinks && (
-            <p className="admin-settings-form__error" role="alert">
+            <p ref={socialLinksError} tabIndex={-1} className="admin-settings-form__error" role="alert">
               {state.errors.socialLinks}
             </p>
           )}
@@ -248,7 +262,9 @@ function SiteSettingsFormContent({ initialValues }: SiteSettingsFormProps) {
             data-status={state.status}
             role={state.status === "error" ? "alert" : "status"}
           >
-            {state.message}
+            {invalidFields.length > 0
+              ? t("homeInvalidFields", { fields: invalidFields.join(t("homeFieldSeparator")) })
+              : state.message}
           </p>
         )}
       </div>

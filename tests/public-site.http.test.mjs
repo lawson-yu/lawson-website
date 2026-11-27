@@ -2129,6 +2129,14 @@ test("站长可以保存站点设置；无效或失败时保留输入并即时�
     await dialog.dismiss();
     await publishClick;
     assert.equal(confirmation, "确认首次发布到 /articles/freshly-entered-slug 吗？");
+
+    await articlePage.goto(`${origin}/admin`);
+    const contactInput = articlePage.locator("#contact-url");
+    await contactInput.fill("http://example.com/contact");
+    await articlePage.getByRole("button", { name: "保存设置" }).click();
+    await articlePage.getByText("请修正以下字段：主要联系入口。", { exact: true }).waitFor();
+    await articlePage.waitForFunction(() => document.activeElement?.id === "contact-url");
+    assert.equal(await contactInput.getAttribute("aria-invalid"), "true");
   } finally {
     await articleContext.close();
   }
@@ -2145,7 +2153,7 @@ test("站长可以保存站点设置；无效或失败时保留输入并即时�
   );
   const invalidBody = await invalidResponse.text();
   assert.equal(invalidResponse.status, 200, invalidBody.slice(0, 1_500));
-  assert.match(invalidBody, /请输入 mailto: 邮箱地址或 HTTPS 地址/);
+  assert.match(invalidBody, /请输入有效的邮箱地址、mailto: 链接或 HTTPS 地址/);
   assert.match(invalidBody, /无效保存时仍保留这段输入/);
   assert.equal(
     (await prisma.siteSetting.findUnique({ where: { id: 1 } }))?.heroIntroduction,
@@ -2187,7 +2195,7 @@ test("站长可以保存站点设置；无效或失败时保留输入并即时�
   const savedResponse = await postSettings(
     actionForm({
       heroIntroduction: "保存后立即公开的介绍",
-      contactUrl: "https://example.com/contact",
+      contactUrl: "hello@example.com",
       socialLinks: [
         { name: "个人主页", url: "https://example.com/lawson", icon: "link" },
         { name: "GitHub", url: "https://github.com/lawson", icon: "code" },
@@ -2201,7 +2209,7 @@ test("站长可以保存站点设置；无效或失败时保留输入并即时�
 
   const updated = await prisma.siteSetting.findUnique({ where: { id: 1 } });
   assert.equal(updated?.heroIntroduction, "保存后立即公开的介绍");
-  assert.equal(updated?.contactUrl, "https://example.com/contact");
+  assert.equal(updated?.contactUrl, "mailto:hello@example.com");
   assert.deepEqual(updated?.socialLinks, [
     { name: "个人主页", url: "https://example.com/lawson", icon: "link" },
     { name: "GitHub", url: "https://github.com/lawson", icon: "code" },
@@ -2211,7 +2219,7 @@ test("站长可以保存站点设置；无效或失败时保留输入并即时�
   const publicHtml = await publicResponse.text();
   assert.equal(publicResponse.status, 200);
   assert.match(publicHtml, /保存后立即公开的介绍/);
-  assert.match(publicHtml, /href="https:\/\/example\.com\/contact"/);
+  assert.match(publicHtml, /href="mailto:hello@example\.com"/);
 });
 
 test("站长可保存不完整草稿、确认发布、撤下并按原地址重新发布", async (context) => {
