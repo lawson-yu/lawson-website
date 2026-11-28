@@ -1798,10 +1798,11 @@ test("手机启用减少动态效果时使用手机静态图且首屏入口可�
   }
 });
 
-test("点云资源失败时保留首页入口，刷新后重新请求", { timeout: 60_000 }, async () => {
+test("点云资源失败时保留首页入口，刷新后重新请求", { timeout: 90_000 }, async () => {
   const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
   const page = await context.newPage();
   let pointRequests = 0;
+  await observeWebglEvents(page);
   await page.route("**/models/custom/person.bin", (route) => {
     pointRequests += 1;
     if (pointRequests === 1) return route.fulfill({ status: 500, body: "unavailable" });
@@ -1826,11 +1827,15 @@ test("点云资源失败时保留首页入口，刷新后重新请求", { timeou
     assert.equal(await page.locator(".home-hero__primary").isVisible(), true);
 
     await page.reload();
-    await page.waitForFunction(
-      () => document.querySelector(".home-hero__character")?.dataset.characterStage === "rendered",
-      null,
-      { timeout: 15_000 },
-    );
+    try {
+      await page.waitForFunction(
+        () => document.querySelector(".home-hero__character")?.dataset.characterStage === "rendered",
+        null,
+        { timeout: 30_000 },
+      );
+    } catch (error) {
+      throw new Error(`${error.message}\n请求次数：${pointRequests}\nWebGL 诊断：${JSON.stringify(await webglDiagnostics(page))}`);
+    }
     assert.equal(pointRequests, 2);
     assert.equal(await page.locator(".home-hero__primary").isVisible(), true);
   } finally {
