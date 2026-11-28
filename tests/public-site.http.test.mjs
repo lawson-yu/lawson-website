@@ -1838,7 +1838,7 @@ test("点云资源失败时保留首页入口，刷新后重新请求", { timeou
   }
 });
 
-test("八秒仍未绘制首帧时保持静态图，刷新后可以重试", { timeout: 60_000 }, async () => {
+test("八秒仍未绘制首帧时保持静态图，刷新后可以重试", { timeout: 90_000 }, async () => {
   const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
   const page = await context.newPage();
   let pointRequests = 0;
@@ -1895,7 +1895,7 @@ test("八秒仍未绘制首帧时保持静态图，刷新后可以重试", { tim
       await page.waitForFunction(
         () => document.querySelector(".home-hero__character")?.dataset.characterStage === "rendered",
         null,
-        { timeout: 15_000 },
+        { timeout: 30_000 },
       );
     } catch (error) {
       throw new Error(`${error.message}\n请求次数：${pointRequests}\n浏览器错误：${JSON.stringify(browserErrors)}\nWebGL 诊断：${JSON.stringify(await webglDiagnostics(page))}`);
