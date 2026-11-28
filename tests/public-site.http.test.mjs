@@ -350,6 +350,27 @@ async function preserveCanvasPixels(page) {
   });
 }
 
+async function observeWebglEvents(page) {
+  await page.addInitScript(() => {
+    window.__webglEvents = [];
+    for (const name of ["webglcontextcreationerror", "webglcontextlost", "webglcontextrestored"]) {
+      document.addEventListener(name, (event) => window.__webglEvents.push({ name, status: event.statusMessage }), true);
+    }
+  });
+}
+
+async function webglDiagnostics(page) {
+  return page.evaluate(() => ({
+    stage: document.querySelector(".home-hero__character")?.getAttribute("data-character-stage"),
+    visibility: document.visibilityState,
+    canvases: [...document.querySelectorAll(".home-character__canvas canvas")].map((canvas) => {
+      const gl = canvas.getContext("webgl2");
+      return { visible: canvas.checkVisibility(), lost: gl?.isContextLost() ?? null, attributes: gl?.getContextAttributes() ?? null };
+    }),
+    events: window.__webglEvents ?? [],
+  }));
+}
+
 async function readCanvasPixels(canvas) {
   const base64 = await canvas.evaluate((element) => {
     const gl = element.getContext("webgl2");
@@ -1298,6 +1319,7 @@ test("首页跨页回访后人物降级与星空阶段保持可见", { timeout: 
 
   try {
     await preserveCanvasPixels(page);
+    await observeWebglEvents(page);
     await prisma.article.create({
       data: {
         id: articleId,
@@ -1354,7 +1376,12 @@ test("首页跨页回访后人物降级与星空阶段保持可见", { timeout: 
     const canvas = page.locator(".home-character__canvas canvas:visible").first();
     let litPixels = 0;
     for (let attempt = 0; attempt < 20 && litPixels === 0; attempt++) {
-      const pixels = await readCanvasPixels(canvas);
+      let pixels;
+      try {
+        pixels = await readCanvasPixels(canvas);
+      } catch (error) {
+        throw new Error(`${error.message}\nWebGL 诊断：${JSON.stringify(await webglDiagnostics(page))}`);
+      }
       for (let index = 0; index < pixels.length; index += 4) {
         if (pixels[index] + pixels[index + 1] + pixels[index + 2] > 24) litPixels++;
       }
@@ -1816,13 +1843,20 @@ test("八秒仍未绘制首帧时保持静态图，刷新后可以重试", { tim
   const page = await context.newPage();
   let pointRequests = 0;
   let releaseFirstRequest;
+  let firstRequestFinished;
+  const firstRequestDone = new Promise((resolve) => (firstRequestFinished = resolve));
+  const browserErrors = [];
+  page.on("pageerror", (error) => browserErrors.push(error.message));
+  await observeWebglEvents(page);
   await page.route("**/models/custom/person.bin", async (route) => {
     pointRequests += 1;
     if (pointRequests === 1) {
       await new Promise((resolve) => (releaseFirstRequest = resolve));
       try {
         await route.abort("timedout");
-      } catch {}
+      } catch {} finally {
+        firstRequestFinished();
+      }
       return;
     }
     return route.continue();
@@ -1855,12 +1889,17 @@ test("八秒仍未绘制首帧时保持静态图，刷新后可以重试", { tim
     assert.equal(await page.locator(".home-hero__primary").isVisible(), true);
 
     releaseFirstRequest?.();
+    await firstRequestDone;
     await page.reload();
-    await page.waitForFunction(
-      () => document.querySelector(".home-hero__character")?.dataset.characterStage === "rendered",
-      null,
-      { timeout: 15_000 },
-    );
+    try {
+      await page.waitForFunction(
+        () => document.querySelector(".home-hero__character")?.dataset.characterStage === "rendered",
+        null,
+        { timeout: 15_000 },
+      );
+    } catch (error) {
+      throw new Error(`${error.message}\n请求次数：${pointRequests}\n浏览器错误：${JSON.stringify(browserErrors)}\nWebGL 诊断：${JSON.stringify(await webglDiagnostics(page))}`);
+    }
     assert.equal(pointRequests, 2);
   } finally {
     releaseFirstRequest?.();
