@@ -20,6 +20,10 @@
 
 定时任务使用 [service](../deploy/lawson-website-backup.service) 和 [timer](../deploy/lawson-website-backup.timer)。安装前核对账号、路径与频率，确保运行账号可使用 COSCLI；安装后监控任务和上传失败。
 
+## 访客记录清理
+
+文章与项目的访客访问记录保留 24 个月。可使用 `./scripts/cleanup-visitor-records.sh` 清理最近访问时间早于 24 个月的记录；生产定时调度使用 [visitor-cleanup service](../deploy/lawson-website-visitor-cleanup.service) 和 [visitor-cleanup timer](../deploy/lawson-website-visitor-cleanup.timer)。
+
 本地备份按文件名中的 UTC 时间戳保留最近 `BACKUP_RETENTION` 份；目录名可以包含空格。
 
 ## 恢复

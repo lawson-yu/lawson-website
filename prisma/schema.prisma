@@ -13,15 +13,167 @@ datasource db {
   provider = "postgresql"
 }
 
-model Project {
-  id          String   @id @default(cuid())
-  slug        String   @unique
-  name        String
-  description String
-  url         String?
-  featured    Boolean  @default(false)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+enum ContentStatus {
+  DRAFT
+  PUBLISHED
+  WITHDRAWN
+}
 
-  @@index([featured, createdAt])
+enum ProjectCardTarget {
+  INTERNAL
+  EXTERNAL
+}
+
+model Project {
+  id               String            @id @default(cuid())
+  slug             String            @unique
+  name             String
+  description      String
+  type             String            @default("")
+  body             String?           @db.Text
+  contentLanguage  String?
+  cardTarget       ProjectCardTarget @default(INTERNAL)
+  status           ContentStatus     @default(DRAFT)
+  url              String?
+  coverImage       String?
+  featuredRank     Int?
+  firstPublishedAt DateTime?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  visits           ProjectVisit[]
+
+  @@index([status, firstPublishedAt])
+  @@index([featuredRank])
+}
+
+model Article {
+  id               String         @id @default(cuid())
+  slug             String?        @unique
+  title            String         @default("")
+  excerpt          String         @default("")
+  bodyLanguage     String?
+  body             String         @default("")
+  coverImageKey    String?
+  searchText       String         @default("")
+  status           ContentStatus  @default(DRAFT)
+  featuredRank     Int?
+  firstPublishedAt DateTime?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  tags             Tag[]
+  visits           ArticleVisit[]
+
+  @@index([status, firstPublishedAt, id])
+  @@index([featuredRank])
+}
+
+model Tag {
+  id       String    @id @default(cuid())
+  name     String    @unique
+  articles Article[]
+}
+
+model SiteSetting {
+  id               Int      @id @default(1)
+  heroIntroduction String?  @db.Text
+  contactUrl       String?
+  socialLinks      Json     @default("[]")
+  updatedAt        DateTime @updatedAt
+}
+
+model User {
+  id            String         @id
+  name          String
+  email         String
+  emailVerified Boolean        @default(false)
+  image         String?
+  firstLoginAt  DateTime?
+  lastLoginAt   DateTime?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  sessions      Session[]
+  accounts      Account[]
+  articleVisits ArticleVisit[]
+  projectVisits ProjectVisit[]
+
+  @@unique([email])
+  @@map("user")
+}
+
+model ArticleVisit {
+  id             String   @id @default(cuid())
+  visitorId      String
+  articleId      String
+  firstVisitedAt DateTime @default(now())
+  lastVisitedAt  DateTime @default(now())
+  visitCount     Int      @default(1)
+  visitor        User     @relation(fields: [visitorId], references: [id], onDelete: Cascade)
+  article        Article  @relation(fields: [articleId], references: [id], onDelete: Cascade)
+
+  @@unique([visitorId, articleId])
+  @@index([visitorId, lastVisitedAt])
+  @@index([lastVisitedAt])
+}
+
+model ProjectVisit {
+  id             String   @id @default(cuid())
+  visitorId      String
+  projectId      String
+  firstVisitedAt DateTime @default(now())
+  lastVisitedAt  DateTime @default(now())
+  visitCount     Int      @default(1)
+  visitor        User     @relation(fields: [visitorId], references: [id], onDelete: Cascade)
+  project        Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([visitorId, projectId])
+  @@index([visitorId, lastVisitedAt])
+  @@index([lastVisitedAt])
+}
+
+model Session {
+  id        String   @id
+  expiresAt DateTime
+  token     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  ipAddress String?
+  userAgent String?
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([token])
+  @@index([userId])
+  @@map("session")
+}
+
+model Account {
+  id                    String    @id
+  accountId             String
+  providerId            String
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@index([userId])
+  @@map("account")
+}
+
+model Verification {
+  id         String   @id
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([identifier])
+  @@map("verification")
 }

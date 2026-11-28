@@ -1,0 +1,73 @@
+.kin-page-scrollbar {
+  position: fixed;
+  z-index: 50;
+  top: 50%;
+  right: 20px;
+  width: 12px;
+  height: 240px;
+  max-height: calc(100dvh - 32px);
+  transform: translateY(-50%);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 240ms ease;
+}
+
+.kin-page-scrollbar::before {
+  position: absolute;
+  inset-block: 0;
+  right: 4px;
+  width: 4px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .24);
+  content: "";
+  pointer-events: none;
+}
+
+.kin-page-scrollbar__thumb {
+  position: absolute;
+  inset-inline: 0;
+  border-radius: 999px;
+  background: transparent;
+  pointer-events: none;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+
+.kin-page-scrollbar__thumb::before {
+  position: absolute;
+  inset-block: 0;
+  left: 3px;
+  width: 6px;
+  border-radius: inherit;
+  background: rgba(255, 255, 255, .96);
+  content: "";
+}
+
+.kin-page-scrollbar.is-visible,
+.kin-page-scrollbar:focus-within {
+  opacity: 1;
+}
+
+.kin-page-scrollbar.is-visible .kin-page-scrollbar__thumb,
+.kin-page-scrollbar:focus-within .kin-page-scrollbar__thumb {
+  pointer-events: auto;
+}
+
+.kin-page-scrollbar__thumb:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 1px rgba(20, 20, 24, .9), 0 0 0 2px rgba(255, 255, 255, .92);
+}
+
+.kin-page-scrollbar__thumb:active {
+  cursor: grabbing;
+}
+
+@media (min-width: 768px) and (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
+  html:has(.kin-page-scrollbar[aria-hidden="false"]) { scrollbar-width: none; }
+  html:has(.kin-page-scrollbar[aria-hidden="false"])::-webkit-scrollbar { display: none; }
+}
+
+@media (max-width: 767px), (hover: none), (pointer: coarse), (prefers-reduced-motion: reduce) {
+  .kin-page-scrollbar { display: none; }
+}
